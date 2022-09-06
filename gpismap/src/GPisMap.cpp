@@ -21,6 +21,7 @@
 #include "GPisMap.h"
 #include <algorithm>
 #include <thread>
+#include <cstring>
 #include "params.h"
 
 tree_param QuadTree::param = tree_param(GPISMAP_TREE_MIN_HALF_LENGTH,
@@ -63,6 +64,7 @@ GPisMap::GPisMap():t(0),
                    gpo(0),
                    obs_numdata(0)
 {
+    setting = GPisMapParam();
     init();
 }
 
@@ -101,6 +103,37 @@ void GPisMap::reset(){
 
     return;
 }
+
+void GPisMap::setParam(const char *p_key, void *p_value) {
+    float value = *(float *)p_value;
+    const char *strvalue = (const char *)p_value;
+
+    if (!strcmp(p_key, "delx")){
+        std::cout << "(updated) setting.delx = " << value << std::endl;
+        setting.delx = value;
+    }
+    else if (!strcmp(p_key, "fbias"))
+        setting.fbias = value;
+    else if (!strcmp(p_key, "obs_var_thre"))
+        setting.obs_var_thre = value;
+    else if (!strcmp(p_key, "sensor_offset_0"))
+        setting.sensor_offset[0] = value;
+    else if (!strcmp(p_key, "sensor_offset_1"))
+        setting.sensor_offset[1] = value;
+    else if (!strcmp(p_key, "angle_obs_limit_0"))
+        setting.angle_obs_limit[0] = value;
+    else if (!strcmp(p_key, "angle_obs_limit_1"))
+        setting.angle_obs_limit[1] = value;
+    else if (!strcmp(p_key, "min_position_noise"))
+        setting.min_position_noise = value;
+    else if (!strcmp(p_key, "min_grad_noise"))
+        setting.min_grad_noise = value;
+    else if (!strcmp(p_key, "map_scale_param"))
+        setting.map_scale_param = value;
+    else if (!strcmp(p_key, "map_noise_param"))
+        setting.map_noise_param = value;
+}
+
 
 bool GPisMap::preproData( float * datax,  float * dataf, int N, std::vector<float> & pose)
 {
@@ -148,6 +181,17 @@ bool GPisMap::preproData( float * datax,  float * dataf, int N, std::vector<floa
     return false;
 }
 
+
+// to be called by C API
+void GPisMap::update(  float * datax,  float * dataf, int N, float pose[6])
+{
+    std::vector<float> pose_vec;
+    for (int i=0;i<6;i++)
+        pose_vec.push_back(pose[i]);
+    update(datax, dataf, N, pose_vec);
+}
+
+// to be called by mex
 void GPisMap::update( float * datax,  float * dataf, int N, std::vector<float> & pose)
 {
     if (!preproData(datax,dataf,N,pose))
@@ -395,7 +439,7 @@ void GPisMap::reEvalPoints(std::vector<std::shared_ptr<Node> >& nodes){
         float grad_noise_sum = (grad_noise_old + grad_noise);
 
          // Now, update
-        if (grad_noise_old > 0.5 || grad_noise_old > 0.6){
+        if (noise_old > 0.5 || grad_noise_old > 0.6){
            ;
         }
         else{
@@ -616,6 +660,9 @@ void GPisMap::updateGPs(){
     }
 
     int num_elements = updateSet.size();
+    if (num_elements <=1){
+        return;
+    }
     QuadTree **nodes_to_update = new QuadTree*[num_elements];
     int it_counter = 0;
     for (auto it = updateSet.begin(); it != updateSet.end(); ++it, ++it_counter){
@@ -684,7 +731,7 @@ void GPisMap::test_kernel(int thread_idx,
 
         res[k6+3] = 1.0 + setting.map_noise_param ; // variance of sdf value
         if (quads.size() == 1){
-            Point<float> ct = quads[0]->getCenter();
+            //Point<float> ct = quads[0]->getCenter();
             std::shared_ptr<OnGPIS> gp = quads[0]->getGP();
             if (gp != nullptr){
                 gp->test2Dpoint(xt,res[k6],res[k6+1],res[k6+2],res[k6+3],res[k6+4],res[k6+5]);

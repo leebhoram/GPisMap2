@@ -1,18 +1,10 @@
-# GPisMap 
+# GPisMap_v2 
 
 This repository contains source codes and demo files for our paper **Online
 Continuous Mapping using Gaussian Process Implicit Surfaces (GPIS)**, which is
 presented at [IEEE ICRA 2019](https://www.icra2019.org/).
 
-The representation of the environment strongly affects how robots can move and
-interact with it. The paper presents an online approach for continuous mapping
-using Gaussian Process Implicit Surfaces (GPIS). Compared with grid-based
-methods, GPIS better utilizes sparse measurements to represent the world
-seamlessly. It provides direct access to the signed-distance function (SDF) and
-its derivatives which are invaluable for other robotic tasks and incorporates
-uncertainty in the sensor measurements. Our approach incrementally and
-efficiently updates GPIS by employing a regressor on observations and a spatial
-tree structure.
+The previous repo [GPisMAP(https://github.com/leebhoram/GPisMap.git) is not maintained but kept as legacy. 
  
 ## License
 
@@ -20,16 +12,24 @@ Licensed under [GNU General Public License version 3](https://www.gnu.org/licens
 
 ## Requirements: Software
 
-1. [Eigen](http://eigen.tuxfamily.org/)
+1. To build the source, you need [Eigen](http://eigen.tuxfamily.org/)
 
-2. [MATLAB](https://www.mathworks.com/products/matlab.html)
+2. (Option 1) You can build the source via MATLAB mex and run demo & visualization scripts on [MATLAB](https://www.mathworks.com/products/matlab.html)
+    Recommended for best visualization. 
+
+3. (Option 2) You can build the source via cmake and run demo & visualization scripts in Python (tested with version 3.9 and CMake 3.20+).
+    Visualization is limited, but useful in case you have no Matlab license. 
+
 
 ## Compiling and Running
 
 1. Clone this repository
 ```
-git clone https://github.com/leebhoram/GPisMap.git
+git clone https://github.com/leebhoram/GPisMap2.git
+cd GPisMap2
 ```
+
+### MATLAB Option 
 
 2. Cd to the mex directive in MATLAB
 ```
@@ -62,23 +62,29 @@ cd mex
     * If mex complains about not finding eigen, configure the eigen path appropriately
         in both `make_GPisMap.m` and `make_GPisMap3.m`
 
-## Video  
-[![](http://img.youtube.com/vi/_EqeoLeHzXU/0.jpg)](http://www.youtube.com/watch?v=_EqeoLeHzXU "Online Continuous Mapping using GPIS")
+### Python Option
 
-## Contributors
+2. Build the source
+```
+mkdir build && cd build
+cmake ..
+make -j $(nproc)
+```
 
-The major contributors of this work include [Bhoram Lee](https://github.com/leebhoram),
-[Clark Zhang](https://github.com/chickensouple) and [HUANG Zonghao](https://github.com/huangzonghao).
+3. Run the demo scripts (TO-DO) 
+
+
+## Author
+
+[Bhoram Lee](https://github.com/leebhoram) E-mail: <first_name>.<last_name>@gmail.com
 
 ## Misc.
 
-Code has been tested under:
-
-- Ubuntu 16.04 with Intel Core i7-4900MQ @ 2.90GHz
+Code has been developed and tested on Ubuntu 22.04 
 
 ## Citation
  
-If you find GPisMap useful in your research, please consider citing:
+If you find GPisMap/GPisMap_v2 useful in your research, please consider citing:
 ```
   @article{<blee-icra19>,
       Author = {Bhoram Lee, Clark Zhang, Zonghao Huang, and Daniel D. Lee},
@@ -87,6 +93,3 @@ If you find GPisMap useful in your research, please consider citing:
       Year = {2019}
    }    
 ```
-
-## Extra...
-Also, see [Bhoram's dissertation (Part II)](https://repository.upenn.edu/cgi/viewcontent.cgi?article=5108&context=edissertations) for technical details.

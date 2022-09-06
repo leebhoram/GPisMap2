@@ -1,0 +1,11 @@
+delx: 0.01
+fbias: 0.2
+obs_var_thre: 0.2
+sensor_offset_0: 0.08 # the hokuyo sensor position (0.08, 0) on a turtlebot for simulation
+sensor_offset_1: 0.0
+angle_obs_limit_0: -2.35619449
+angle_obs_limit_1: 2.35619449
+min_position_noise: 0.01
+min_grad_noise: 0.01
+map_scale_param: 1.0
+map_noise_param: 0.01

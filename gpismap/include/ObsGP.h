@@ -62,13 +62,12 @@ public:
 // This is a base class to build a partitioned GP regressor, holding multiple local GPs using GPou.
 class ObsGP{
 protected:
-
     bool trained;
-
     std::vector<std::shared_ptr<GPou> > gps;          // pointer to the local GPs
 
 public:
-    ObsGP(){}
+    ObsGP() = default;
+    virtual ~ObsGP() = default;
 
     bool isTrained(){return trained;}
     void reset();
@@ -92,7 +91,7 @@ class ObsGP1D : public ObsGP{
 
 public:
     ObsGP1D():nSamples(0){}
-
+    ~ObsGP1D(){}
     void reset();
 
     // NOTE: In 1D, it must be f > 0.
@@ -127,7 +126,8 @@ class ObsGP2D : public ObsGP{
                               DEFAULT_OBSGP_OVERLAP_SZ2,
                               DEFAULT_OBSGP_GROUP_SZ2};
 public:
-
+    ObsGP2D(){}
+    ~ObsGP2D(){}
     void reset();
 
     void getNumValidPoints(std::vector<int> &nPts);

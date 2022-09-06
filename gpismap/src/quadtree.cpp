@@ -309,6 +309,7 @@ bool QuadTree::Insert(std::shared_ptr<Node> n,  std::unordered_set<QuadTree*>& q
         return true;
     }
 
+    return false;
 }
 
 void QuadTree::updateCount()
@@ -463,6 +464,7 @@ bool QuadTree::Update(std::shared_ptr<Node> n){
     if(southWest->Update(n)) return true;
     if(southEast->Update(n)) return true;
 
+    return false;
 }
 
 bool QuadTree::Update(std::shared_ptr<Node> n, std::unordered_set<QuadTree*>& quads){
@@ -506,6 +508,7 @@ bool QuadTree::Update(std::shared_ptr<Node> n, std::unordered_set<QuadTree*>& qu
         return true;
     }
 
+    return false;
 }
 
 void QuadTree::Subdivide()

@@ -1,3 +1,7 @@
 *.mexa64
 *.swp
+*.pyc
+*.ipynb*
+*__pycache*
 .DS_Store
+build/*

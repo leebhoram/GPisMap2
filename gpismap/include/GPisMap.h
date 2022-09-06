@@ -18,113 +18,96 @@
  *          Huang Zonghao<ac@hzh.io>
  */
 
-#ifndef __GPIS_MAP3__H__
-#define __GPIS_MAP3__H__
+#ifndef __GPIS_MAP__H__
+#define __GPIS_MAP__H__
 
 #include "ObsGP.h"
 #include "OnGPIS.h"
-#include "octree.h"
+#include "quadtree.h"
 #include "params.h"
 
-typedef struct camParam_{
-    float fx;
-    float fy;
-    float cx;
-    float cy;
-    int width;
-    int height;
-
-    camParam_(){
-        width = 640;
-        height = 480;
-        fx = 568.0; // 570.9361;
-        fy = 568.0; // 570.9361;
-        cx = 310;// 307;
-        cy = 224; //240;
-    }
-    camParam_(float fx_, float fy_, float cx_, float cy_, float w_, float h_): fx(fx_),fy(fy_), cx(cx_), cy(cy_), width(w_), height(h_){}
-} camParam;
-
-typedef struct GPisMap3Param_{
+typedef struct GPisMapParam_{
     float delx;         // numerical step delta (e.g. surface normal sampling)
     float fbias;        // constant map bias values (mean of GP)
+    float sensor_offset[2];
+    float angle_obs_limit[2];
     float obs_var_thre; // threshold for variance of ObsGP
                         //  - If var(prediction) > v_thre, then don't rely on the prediction.
-    int   obs_skip;     // use every 'skip'-th pixel
     float min_position_noise;
     float min_grad_noise;
 
     float map_scale_param;
     float map_noise_param;
 
-    GPisMap3Param_(){
-        delx = GPISMAP3_DELX;
-        fbias = GPISMAP3_FBIAS;
-        obs_skip = GPISMAP3_OBS_SKIP;
-        obs_var_thre = GPISMAP3_OBS_VAR_THRE;
-        min_position_noise = GPISMAP3_MIN_POS_NOISE;
-        min_grad_noise = GPISMAP3_MIN_GRAD_NOISE;
-        map_scale_param = GPISMAP3_MAP_SCALE;
-        map_noise_param = GPISMAP3_MAP_NOISE;
+    GPisMapParam_(){
+        delx = GPISMAP_DELX;
+        fbias = GPISMAP_FBIAS;
+        obs_var_thre = GPISMAP_OBS_VAR_THRE;
+        sensor_offset[0] = GPISMAP_SENSOR_OFFSET_0;
+        sensor_offset[1] = GPISMAP_SENSOR_OFFSET_1;
+        angle_obs_limit[0] = GPISMAP_ANGLE_OBS_LIMIT_0;
+        angle_obs_limit[1] = GPISMAP_ANGLE_OBS_LIMIT_1;
+        min_position_noise = GPISMAP_MIN_POS_NOISE;
+        min_grad_noise = GPISMAP_MIN_GRAD_NOISE;
+        map_scale_param = GPISMAP_MAP_SCALE;
+        map_noise_param = GPISMAP_MAP_NOISE;
     }
 
-    GPisMap3Param_(GPisMap3Param_& par){
+    GPisMapParam_( GPisMapParam_& par){
         delx = par.delx;
         fbias = par.fbias;
-        obs_skip = par.obs_skip;
         obs_var_thre = par.obs_var_thre;
+        sensor_offset[0] = par.sensor_offset[0];
+        sensor_offset[1] = par.sensor_offset[1];
         min_position_noise = par.min_position_noise;
         min_grad_noise = par.min_grad_noise;
         map_scale_param = par.map_scale_param;
         map_noise_param = par.map_noise_param;
     }
-}GPisMap3Param;
+}GPisMapParam;
 
-class GPisMap3{
+class GPisMap{
 protected:
-    GPisMap3Param setting;
-    camParam cam;
+    GPisMapParam setting;
 
-    float u_obs_limit[2];
-    float v_obs_limit[2];
+    QuadTree* t;
+    std::unordered_set<QuadTree*>  activeSet;
+    const int mapDimension = 2;
 
-    std::vector<float> vu_grid;
-
-    OcTree* t;
-    std::unordered_set<OcTree*> activeSet;
-    const int mapDimension = 3;
- 
     void init();
-    bool preprocData( float * dataz, int N, std::vector<float> & pose);
+    bool preproData( float * datax,  float * dataf, int N, std::vector<float> & pose);
     bool regressObs();
     void updateMapPoints();
-    void reEvalPoints(std::vector<std::shared_ptr<Node3> >& nodes);
+    void reEvalPoints(std::vector<std::shared_ptr<Node> >& nodes);
     void evalPoints();
     void addNewMeas();
     void updateGPs();
 
     ObsGP* gpo;
-    std::vector<float> obs_valid_u;
-    std::vector<float> obs_valid_v;
-    std::vector<float> obs_zinv;
-    std::vector<float> obs_valid_xyzlocal;
-    std::vector<float> obs_valid_xyzglobal;
+    std::vector<float> obs_theta;
+    std::vector<float> obs_range;
+    std::vector<float> obs_f;
+    std::vector<float> obs_xylocal;
+    std::vector<float> obs_xyglobal;
     std::vector<float> pose_tr;
     std::vector<float> pose_R;
     int obs_numdata;
     float range_obs_max;
 
 public:
-    GPisMap3();
-    GPisMap3(GPisMap3Param par);
-    GPisMap3(GPisMap3Param par, camParam c);
-    ~GPisMap3();
+    GPisMap();
+    GPisMap(GPisMapParam par);
+    ~GPisMap();
     void reset();
 
-    void getAllPoints(std::vector<float> & pos);
-    void update( float * dataz, int N, std::vector<float> & pose);
+    void setParam(const char *p_key, void *p_value) ;
+    // to be called as C API
+    void update(  float * datax,  float * dataf, int N, float pose[6]);
+    // to be called by mex
+    void update(  float * datax,  float * dataf, int N, std::vector<float> & pose);
     bool test( float* x, int dim, int leng, float * res);
-    void resetCam(camParam c);
+
+    int getMapDimension(){return mapDimension;}
 
 private:
     void test_kernel(int thread_idx,
@@ -136,7 +119,10 @@ private:
     void updateGPs_kernel(int thread_idx,
                           int start_idx,
                           int end_idx,
-                          OcTree **nodes_to_update);
+                          QuadTree **nodes_to_update);
 };
+
+
+typedef GPisMap* GPMHandle;
 
 #endif

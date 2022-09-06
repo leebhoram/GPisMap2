@@ -123,7 +123,7 @@ OcTree::OcTree(AABB3 _boundary,  OcTree* const ch,  int child_type)
             southEastBack = ch;
     }
 
-    Point3<float> c = boundary.getCenter();
+    //Point3<float> c = boundary.getCenter();
 }
 
 void OcTree::deleteChildren()
