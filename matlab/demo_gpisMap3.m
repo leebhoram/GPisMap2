@@ -21,32 +21,31 @@ close all
 clearvars
 
 addpath('./plot_scripts');
-addpath('../mex');
+addpath('./mex');
 mexGPisMap3('reset')
 
 % The original dataset downloadable at http://rll.berkeley.edu/bigbird/
 % The following data are sampled and prepared by the authors for the test
 depthpath = '../data/3D/bigbird_detergent/masked_depth';
-poses = single(load('../data/3D/bigbird_detergent/pose/poses.txt'));
+poses = load('../data/3D/bigbird_detergent/pose/poses.txt');
 
 % input sequence
-FrameNums = [93:3:359 3:3:90];  % numel : 120
-CamIDs = repmat([1 2 3 4 3 2],1,30);
+FrameNums = poses(:,1);  
+CamIDs = poses(:,2);
+poses = single(poses(:,3:end));
 
 % test 3D volume grid
 [xg, yg, zg ] = meshgrid(-0.07:0.01:0.13, -0.1:0.01:0.14, 0:0.01:0.28);
 xtest1 = single([xg(:)'; yg(:)'; zg(:)']);
 
-count = 0;
-for k=1:3:numel(FrameNums)
+for k=1:numel(FrameNums)
     frmNo = FrameNums(k);
-    count = count + 1;
-    camID = CamIDs(count);
+    camID = CamIDs(k);
 
     D = imread(fullfile(depthpath,sprintf('frame%d_cam%d.png',frmNo,camID)));
     D = single(D)*single(0.0001); % 10 mm to meter
 
-    T = reshape(poses(count,:),4,4);
+    T = reshape(poses(k,:),4,4);
     R = T(1:3,1:3);
     t = T(4,1:3)';
 

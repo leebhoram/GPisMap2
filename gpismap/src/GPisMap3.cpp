@@ -850,7 +850,6 @@ void GPisMap3::updateGPs(){
         return;
 
     std::vector<OcTree *> nodes_to_update;
-    int it_counter = 0;
     for (auto const & node: updateSet){
         nodes_to_update.push_back(node);
     }

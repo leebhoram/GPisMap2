@@ -22,7 +22,7 @@ close all
 
 addpath(genpath('./util'));
 addpath('./plot_scripts');
-addpath('../mex');
+addpath('./mex');
 load('../data/2D/gazebo1.mat');
 
 % test points (regular samples for visualization)

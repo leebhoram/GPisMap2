@@ -40,7 +40,9 @@ set(gcf,'visible',fig_visible,'renderer','opengl');
 gcf_pos = get(gcf,'Position');
 gcf_pose(3:4) = gcf_size;
 set(gcf,'Color',gcf_color,'Position',gcf_pose);
-pcshow([-100,-100,-100],'k','VerticalAxis','Z','VerticalAxisDir','Up'); hold on; % dummy point for better axis setting
+% dummy point for better axis setting
+% (gives an error without computer vision toolbox)
+% pcshow([-100,-100,-100],'k','VerticalAxis','Z','VerticalAxisDir','Up'); hold on; 
 p = patch('Faces',f,'Vertices',v,'FaceVertexCData',repmat([0.5 0.5 0.5],size(v,1),1),'FaceVertexAlphaData',falpha','FaceAlpha','interp'); hold on;
 axis off;
 isonormals(xg,yg,zg,reshape(fval,size(xg)),p)

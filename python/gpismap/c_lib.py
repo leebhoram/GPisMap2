@@ -13,12 +13,14 @@ import multiprocessing
 def _load_lib():
     """ Load library in build/lib. """
     cur_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    lib_path = os.path.join(cur_path, "../../build/")
+    lib_path = os.path.join(cur_path, os.path.dirname(cur_path))
+    lib_path = os.path.join(lib_path, os.path.dirname(lib_path))
+
     if platform.system() == 'Linux':
-        path_to_so_file = '/home/bhoram/Dev/GPisMap2/build/libgpismap.so' #os.path.join(lib_path, "libgpismap.so")
+        path_to_so_file = os.path.join(lib_path,'build/libgpismap.so')
     else:
         raise BaseException("unsupported system: " + platform.system())
-    print(lib_path)
+
     lib = ctypes.CDLL(path_to_so_file, ctypes.RTLD_GLOBAL)
     return lib
 
