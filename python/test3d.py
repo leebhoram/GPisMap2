@@ -83,7 +83,7 @@ def main():
         toc = time.perf_counter()
         print(f"Elapsed time: {toc - tic:0.4f} seconds...")
 
-        if k == 0: #len(frameid)-1:
+        if k == len(frameid)-1:
             # visualize
             print("Visualizing...")
             f = gp.test(xtest)
@@ -105,7 +105,7 @@ def main():
             ax.set_box_aspect([1,1,1])
             set_axes_equal(ax)
             plt.show()
-            break
+            #break
 
     gp.reset()
     input("Press Enter to end...")
