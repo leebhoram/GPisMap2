@@ -25,6 +25,7 @@
 #include "OnGPIS.h"
 #include "octree.h"
 #include "params.h"
+#include <mutex>
 
 typedef struct camParam_{
     float fx;
@@ -104,7 +105,7 @@ protected:
     void addNewMeas();
     void updateGPs();
 
-    ObsGP* gpo;
+    std::unique_ptr<ObsGP> gpo;
     std::vector<float> obs_valid_u;
     std::vector<float> obs_valid_v;
     std::vector<float> obs_zinv;
@@ -140,7 +141,18 @@ private:
     void updateGPs_kernel(int thread_idx,
                           int start_idx,
                           int end_idx,
-                          OcTree **nodes_to_update);
+                         std::vector<OcTree*>& nodes_to_update);
+
+    void reEvalPoints_kernel( int thread_idx,
+                            int start_idx,
+                            int end_idx,
+                            std::vector<std::shared_ptr<Node3> >& nodes);
+
+    void evalPoints_kernel(int thread_idx,
+                                int start_idx,
+                                int end_idx);
+
+    std::mutex mux;
 };
 
 typedef GPisMap3* GPM3Handle;

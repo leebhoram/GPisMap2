@@ -21,6 +21,7 @@
 #define __QUADTREE_H_
 
 #include <vector>
+#include <map>
 #include <unordered_set>
 #include <memory>
 #include <iostream>
@@ -105,14 +106,10 @@ public:
     }
 };
 
+enum class QuadChildType {undefined, NW, NE, SW, SE};
+
 class QuadTree
 {
-    // Arbitrary constant to indicate how many elements can be stored in this quad tree node
-    const int CHILD_TYPE_NW = 1;
-    const int CHILD_TYPE_NE = 2;
-    const int CHILD_TYPE_SW = 3;
-    const int CHILD_TYPE_SE = 4;
-
     // Axis-aligned bounding box stored as a center with half-dimensions
     // to represent the boundaries of this quad tree
     AABB boundary;
@@ -122,6 +119,9 @@ class QuadTree
     // Points in this quad tree node
     std::shared_ptr<Node> node;
     std::shared_ptr<OnGPIS> gp;
+
+    std::map<QuadChildType, QuadTree*> children_map;
+    std::map<QuadChildType, Point<float>> children_center;
 
     bool leaf;
     bool maxDepthReached;
@@ -137,12 +137,16 @@ class QuadTree
 
     QuadTree* par;
 
-    QuadTree(AABB _boundary, QuadTree* const p =0 );
-    QuadTree(AABB _boundary, QuadTree* const ch, int child_type);
+    QuadTree(AABB _boundary, QuadTree* const p = nullptr );
+    QuadTree(AABB _boundary, QuadTree* const ch, QuadChildType child_type);
 
     void Subdivide(); // create four children that fully divide this quad into four quads of equal area
-    void SubdivideExcept(int childType);
+    void SubdivideExcept(QuadChildType childType);
     void deleteChildren();
+    void deleteNode();
+    void deleteGP();
+    void resetChildrenMap();
+    void updateChildrenCenter();
     bool InsertToParent(std::shared_ptr<Node> n);
     void updateCount();
     void setParent(QuadTree* const p){par = p;}
@@ -155,11 +159,11 @@ protected:
     }
 public:
     // Methods
-    QuadTree():northWest(0),
-            northEast(0),
-            southWest(0),
-            southEast(0),
-            par(0),
+    QuadTree():northWest(nullptr),
+            northEast(nullptr),
+            southWest(nullptr),
+            southEast(nullptr),
+            par(nullptr),
             maxDepthReached(false),
             rootLimitReached(false),
             leaf(true),
@@ -168,10 +172,7 @@ public:
             gp(nullptr){}
 
     QuadTree(Point<float> center);
-
-    ~QuadTree(){
-        deleteChildren();
-    }
+    ~QuadTree();
 
     bool IsRoot(){
         if (par)
@@ -209,11 +210,12 @@ public:
     float getXMaxbound(){return boundary.getXMaxbound();}
     float getYMinbound(){return boundary.getYMinbound();}
     float getYMaxbound(){return boundary.getYMaxbound();}
-    Point<float> getNW(){return boundary.getNW();}
-    Point<float> getNE(){return boundary.getNE();}
-    Point<float> getSW(){return boundary.getSW();}
-    Point<float> getSE(){return boundary.getSE();}
 
+    Point<float> getChildCenter(QuadChildType c);
+    std::map<QuadChildType, Point<float>> const & getAllChildrenCenter();
+    std::map<QuadChildType, QuadTree*> const & getAllChildren();
+
+    void getChildNonEmptyNodes(QuadChildType c, std::vector<std::shared_ptr<Node> >& nodes);
     void getAllChildrenNonEmptyNodes(std::vector<std::shared_ptr<Node> >& nodes);
 
 };

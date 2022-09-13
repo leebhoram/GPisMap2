@@ -152,8 +152,8 @@ void ObsGP1D::test(const EMatrixX& xt,EVectorX& val, EVectorX& var){
     int N = xt.cols();
 
     if (dim ==1){
-        float liml = (*(range.begin())+param.margin);
-        float limr = (*(range.end()-1)-param.margin);
+        float liml = (*(range.cbegin())+param.margin);
+        float limr = (*(range.cend()-1)-param.margin);
         for (int k=0;k<N;k++){
 
             EVectorX f = val.segment(k,1);
@@ -168,7 +168,7 @@ void ObsGP1D::test(const EMatrixX& xt,EVectorX& val, EVectorX& var){
             }
             else{ // in-between
                 int j = 0;
-                for (auto it = (range.begin()+1); it!=range.end() ; it++,j++){
+                for (auto it = (range.cbegin()+1); it!=range.cend() ; it++,j++){
                     if (xt(0,k) > *(it-1) && xt(0,k) < *it){
                         // and test
                         if (gps[j]->isTrained()){
@@ -285,15 +285,15 @@ void ObsGP2D::trainValidPoints(float xt[], float f[])
      clearGPs();
      gps.resize(nGroup[0]*nGroup[1],nullptr);
 
-     auto itj0 = Ind_j0.begin();
-     auto itj1 = Ind_j1.begin();
+     auto itj0 = Ind_j0.cbegin();
+     auto itj1 = Ind_j1.cbegin();
      int m=0;
-     for (;(itj0 != Ind_j0.end() && itj1 != Ind_j1.end() && m < nGroup[1]);itj0++,itj1++,m++){
+     for (;(itj0 != Ind_j0.cend() && itj1 != Ind_j1.cend() && m < nGroup[1]);itj0++,itj1++,m++){
 
-        auto iti0 = Ind_i0.begin();
-        auto iti1 = Ind_i1.begin();
+        auto iti0 = Ind_i0.cbegin();
+        auto iti1 = Ind_i1.cbegin();
         int n=0;
-        for (;(iti0 != Ind_i0.end() && iti1 != Ind_i1.end() && n < nGroup[0]);iti0++,iti1++,n++){
+        for (;(iti0 != Ind_i0.cend() && iti1 != Ind_i1.cend() && n < nGroup[0]);iti0++,iti1++,n++){
             // Dynamic array for valid inputs
             std::vector<float> x_valid; // 2D array
             std::vector<float> f_valid;
@@ -362,30 +362,30 @@ void ObsGP2D::test_kernel(int thread_idx,
         EVectorX v = var.segment(k,1);
         var(k) = 1e6;
         // find the corresponding group
-        if (xt(0,k) < *(Val_i.begin())+param.margin ){ // boundary 1
+        if (xt(0,k) < *(Val_i.cbegin())+param.margin ){ // boundary 1
             ;
 
         }
-        else if (xt(0,k) > *(Val_i.end()-1)-param.margin){ // boundary 2
+        else if (xt(0,k) > *(Val_i.cend()-1)-param.margin){ // boundary 2
             ;
         }
-        else if (xt(1,k) < *(Val_j.begin())+param.margin ){ // boundary 1
+        else if (xt(1,k) < *(Val_j.cbegin())+param.margin ){ // boundary 1
             ;
         }
-        else if (xt(1,k) > *(Val_j.end()-1)-param.margin){ // boundary 2
+        else if (xt(1,k) > *(Val_j.cend()-1)-param.margin){ // boundary 2
             ;
         }
         else{ // in-between
 
             int n = 0;
-            for (auto it = (Val_i.begin()+1); it!=Val_i.end() ; it++,n++){
+            for (auto it = (Val_i.cbegin()+1); it!=Val_i.cend() ; it++,n++){
                 if (xt(0,k) < *it){
                     break;
                 }
             }
 
             int m = 0;
-            for (auto it = (Val_j.begin()+1); it!=Val_j.end() ; it++,m++){
+            for (auto it = (Val_j.cbegin()+1); it!=Val_j.cend() ; it++,m++){
                 if (xt(1,k) < *it){
                     break;
                 }

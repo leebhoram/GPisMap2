@@ -29,11 +29,11 @@ float sqdist(const Point<float>& pt1, const Point<float>& pt2)
 }
 
 QuadTree::QuadTree(Point<float> c):
-        northWest(0),
-        northEast(0),
-        southWest(0),
-        southEast(0),
-        par(0),
+        northWest(nullptr),
+        northEast(nullptr),
+        southWest(nullptr),
+        southEast(nullptr),
+        par(nullptr),
         maxDepthReached(false),
         rootLimitReached(false),
         leaf(true),
@@ -42,46 +42,50 @@ QuadTree::QuadTree(Point<float> c):
         gp(nullptr)
 {
      boundary = AABB(c,QuadTree::param.initroot_halfleng);
+     resetChildrenMap();
 }
 
-QuadTree::QuadTree(AABB _boundary, QuadTree* const p )
-        :northWest(0),
-         northEast(0),
-         southWest(0),
-         southEast(0),
-               par(0),
+QuadTree::QuadTree(AABB _boundary, QuadTree* const p ):
+        northWest(nullptr),
+        northEast(nullptr),
+        southWest(nullptr),
+        southEast(nullptr),
+        par(nullptr),
         maxDepthReached(false),
         rootLimitReached(false),
         leaf(true),
         numNodes(0),
         node(nullptr),
-        gp(nullptr){
+        gp(nullptr)
+{
     boundary = _boundary;
     if (boundary.getHalfLength() < QuadTree::param.min_halfleng)
         maxDepthReached = true;
     if (boundary.getHalfLength() > QuadTree::param.max_halfleng)
         rootLimitReached = true;
-    if (p!=0)
+    if (p!=nullptr)
         par = p;
+    resetChildrenMap();
 }
 
-QuadTree::QuadTree(AABB _boundary,  QuadTree* const ch,  int child_type)
-        :northWest(0),
-         northEast(0),
-         southWest(0),
-         southEast(0),
-               par(0),
+QuadTree::QuadTree(AABB _boundary,  QuadTree* const ch,  QuadChildType child_type):
+        northWest(nullptr),
+        northEast(nullptr),
+        southWest(nullptr),
+        southEast(nullptr),
+        par(nullptr),
         maxDepthReached(false),
         rootLimitReached(false),
         numNodes(0),
         node(nullptr),
-        gp(nullptr){
+        gp(nullptr)
+{
     boundary = _boundary;
     if (boundary.getHalfLength() < QuadTree::param.min_halfleng)
         maxDepthReached = true;
     if (boundary.getHalfLength() > QuadTree::param.max_halfleng)
         rootLimitReached = true;
-    if (child_type == 0)
+    if (child_type == QuadChildType::undefined)
     {
         leaf = true;
     }
@@ -89,30 +93,80 @@ QuadTree::QuadTree(AABB _boundary,  QuadTree* const ch,  int child_type)
     {
         leaf = false;
         SubdivideExcept(child_type);
-        if (child_type == CHILD_TYPE_NW)
+        if (child_type == QuadChildType::NW)
             northWest = ch;
-        if (child_type == CHILD_TYPE_NE)
+        if (child_type == QuadChildType::NE)
             northEast = ch;
-        if (child_type == CHILD_TYPE_SW)
+        if (child_type == QuadChildType::SW)
             southWest = ch;
-        if (child_type == CHILD_TYPE_SE)
+        if (child_type == QuadChildType::SE)
             southEast = ch;
+    }
+    resetChildrenMap();
+}
+
+QuadTree::~QuadTree(){
+    deleteChildren();
+    deleteGP();
+    deleteNode();
+}
+
+void QuadTree::deleteNode(){
+    if (node != nullptr){
+        node.reset();
+        node = nullptr;
     }
 }
 
+void QuadTree::deleteGP(){
+    if (gp != nullptr){
+        gp.reset();
+        gp = nullptr;
+    }
+}
+
+
 void QuadTree::deleteChildren()
 {
-    if (northWest) {delete northWest; northWest = 0;}
-    if (northEast) {delete northEast; northEast = 0;}
-    if (southWest) {delete southWest; southWest = 0;}
-    if (southEast) {delete southEast; southEast = 0;}
+    if (northWest) {delete northWest; northWest = nullptr;}
+    if (northEast) {delete northEast; northEast = nullptr;}
+    if (southWest) {delete southWest; southWest = nullptr;}
+    if (southEast) {delete southEast; southEast = nullptr;}
     leaf = true;
 }
+
+void QuadTree::resetChildrenMap(){
+    children_map.clear();
+    children_map.insert({QuadChildType::NE, northEast});
+    children_map.insert({QuadChildType::NW, northWest});
+    children_map.insert({QuadChildType::SE, southEast});
+    children_map.insert({QuadChildType::SW, southWest});
+    updateChildrenCenter();
+}
+
+void QuadTree::updateChildrenCenter(){
+    children_center.clear();
+    for (auto &child: children_map)
+        if (child.second!=nullptr){
+            children_center.insert({child.first, child.second->getCenter()});
+        }
+}
+
+std::map<QuadChildType, Point<float>> const & QuadTree::getAllChildrenCenter()
+{
+    return children_center;
+}
+
+std::map<QuadChildType, QuadTree*> const & QuadTree::getAllChildren()
+{   
+    return children_map;
+}
+
 
 QuadTree* const QuadTree::getRoot(){
     QuadTree* p = this;
     QuadTree* p1 = p->getParent();
-    while (p1!=0){
+    while (p1!=nullptr){
         p = p1;
         p1 = p->getParent();
     }
@@ -127,24 +181,24 @@ bool QuadTree::InsertToParent(std::shared_ptr<Node> n){
     const Point<float> np = n->getPos();
 
     Point<float> par_c;
-    int childType = 0;
+    QuadChildType childType = QuadChildType::undefined;
     if (np.x < c.x && np.y > c.y){
-        childType = CHILD_TYPE_SE;
+        childType = QuadChildType::SE;
         par_c.x = c.x - l;
         par_c.y = c.y + l;
     }
     if (np.x > c.x && np.y > c.y){
-        childType = CHILD_TYPE_SW;
+        childType = QuadChildType::SW;
         par_c.x = c.x + l;
         par_c.y = c.y + l;
     }
     if (np.x < c.x && np.y < c.y){
-        childType = CHILD_TYPE_NE;
+        childType = QuadChildType::NE;
         par_c.x = c.x - l;
         par_c.y = c.y - l;
     }
     if (np.x > c.x && np.y < c.y){
-        childType = CHILD_TYPE_NW;
+        childType = QuadChildType::NW;
         par_c.x = c.x + l;
         par_c.y = c.y - l;
     }
@@ -158,7 +212,7 @@ bool QuadTree::Insert(std::shared_ptr<Node> n){
 
     // Ignore objects that do not belong in this quad tree
     if (!boundary.containsPoint(n->getPos())){
-        if (getParent() == 0) {
+        if (getParent() == nullptr) {
             if (rootLimitReached)  return false;
             else                   return InsertToParent(n);
         }
@@ -196,26 +250,18 @@ bool QuadTree::Insert(std::shared_ptr<Node> n){
             }
 
             Subdivide();
-            if (northWest->Insert(node)){
-                ;
-            }
-            else if (northEast->Insert(node)){
-                ;
-            }
-            else if (southWest->Insert(node)) {
-                ;
-            }
-            else if (southEast->Insert(node)) {
-                ;
-            }
+            for (auto const &child: children_map)
+                if (child.second->Insert(node))
+                    break;
             node = nullptr;
         }
     }
 
-    if (northWest->Insert(n)) {updateCount(); return true;}
-    if (northEast->Insert(n)) {updateCount(); return true;}
-    if (southWest->Insert(n)) {updateCount(); return true;}
-    if (southEast->Insert(n)) {updateCount(); return true;}
+    for (auto const &child: children_map)
+        if (child.second->Insert(n)){
+            updateCount(); 
+            return true;
+        }
 
     return false;
 }
@@ -224,7 +270,7 @@ bool QuadTree::Insert(std::shared_ptr<Node> n,  std::unordered_set<QuadTree*>& q
 {
      // Ignore objects that do not belong in this quad tree
     if (!boundary.containsPoint(n->getPos())){
-        if (getParent() == 0) {
+        if (getParent() == nullptr) {
             if (rootLimitReached)  return false;
             else                   return InsertToParent(n);
         }
@@ -265,49 +311,21 @@ bool QuadTree::Insert(std::shared_ptr<Node> n,  std::unordered_set<QuadTree*>& q
             }
 
             Subdivide();
-            if (northWest->Insert(node,quads)){
-                ;
-            }
-            else if (northEast->Insert(node,quads)){
-                ;
-            }
-            else if (southWest->Insert(node,quads)) {
-                ;
-            }
-            else if (southEast->Insert(node,quads)) {
-                ;
-            }
+            for (auto const &child: children_map)
+                if (child.second->Insert(node, quads))
+                    break;
+            
             node = nullptr;
         }
     }
 
-    if (northWest->Insert(n,quads)) {
-        if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-3)
-            quads.insert(this);
-        updateCount();
-        return true;
-    }
-
-    if (northEast->Insert(n,quads)) {
-        if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-3)
-            quads.insert(this);
-        updateCount();
-        return true;
-    }
-
-    if (southWest->Insert(n,quads)) {
-        if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-3)
-            quads.insert(this);
-        updateCount();
-        return true;
-    }
-
-    if (southEast->Insert(n,quads)) {
-        if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-3)
-            quads.insert(this);
-        updateCount();
-        return true;
-    }
+    for (auto const &child: children_map)
+        if (child.second->Insert(n,quads)){
+            if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-6)
+                quads.insert(this);
+            updateCount(); 
+            return true;
+        }
 
     return false;
 }
@@ -316,10 +334,8 @@ void QuadTree::updateCount()
 {
     if (leaf==false){
         numNodes = 0;
-        numNodes += northWest->getNodeCount();
-        numNodes += northEast->getNodeCount();
-        numNodes += southWest->getNodeCount();
-        numNodes += southEast->getNodeCount();
+        for (auto const &child: children_map)
+            numNodes += child.second->getNodeCount();
     }
 }
 
@@ -340,10 +356,9 @@ bool QuadTree::IsNotNew(std::shared_ptr<Node> n)
     if (IsLeaf())
         return false;
 
-    if (northWest->IsNotNew(n)) return true;
-    if (northEast->IsNotNew(n)) return true;
-    if (southWest->IsNotNew(n)) return true;
-    if (southEast->IsNotNew(n)) return true;
+    for (auto const &child: children_map)
+        if (child.second->IsNotNew(n))
+            return true;
 
     return false;
 }
@@ -359,30 +374,32 @@ bool QuadTree::Remove(std::shared_ptr<Node> n){
 
     if (!IsEmpty() && (sqdist(node->getPos(), n->getPos()) < EPS))
     {
-        node = nullptr;
-        numNodes = 0;
+        deleteNode();
         return true;
     }
 
     if (IsLeaf())
         return false;
 
-    bool res = northWest->Remove(n);
-    res |= northEast->Remove(n);
-    res |= southWest->Remove(n);
-    res |= southEast->Remove(n);
+    bool res = false;
+    for (auto const &child: children_map){
+        res = child.second->Remove(n);
+        if (res)
+            break;
+    }
 
     if (res)
     {
-        bool res2 = northWest->IsEmptyLeaf();
-        res2 &= northEast->IsEmptyLeaf();
-        res2 &= southWest->IsEmptyLeaf();
-        res2 &= southEast->IsEmptyLeaf();
+        bool res2 = true;
+        for (auto const &child: children_map){
+            res2 &= child.second->IsEmptyLeaf();
+        }
+        
         if (res2)
         {
             deleteChildren();
+            deleteNode();
             leaf = true;
-            numNodes = 0;
         }
     }
     updateCount();
@@ -401,34 +418,35 @@ bool QuadTree::Remove(std::shared_ptr<Node> n,std::unordered_set<QuadTree*>& qua
 
     if (!IsEmpty() && (sqdist(node->getPos(), n->getPos()) < EPS))
     {
-        node = nullptr;
-        numNodes = 0;
+        deleteNode();
         return true;
     }
 
     if (IsLeaf())
         return false;
 
-    bool res = northWest->Remove(n,quads);
-    if (!res) res |= northEast->Remove(n,quads);
-    if (!res) res |= southWest->Remove(n,quads);
-    if (!res) res |= southEast->Remove(n,quads);
+    bool res = false;
+    for (auto const &child: children_map){
+        res = child.second->Remove(n,quads);
+        if (res)
+            break;
+    }
 
     if (res)
-    {
-        bool res2 = northWest->IsEmptyLeaf();
-        res2 &= northEast->IsEmptyLeaf();
-        res2 &= southWest->IsEmptyLeaf();
-        res2 &= southEast->IsEmptyLeaf();
+    {   
+        bool res2 = true;
+        for (auto const &child: children_map){
+            res2 &= child.second->IsEmptyLeaf();
+        }
+        
         if (res2)
         {
-            quads.erase(northWest);
-            quads.erase(northEast);
-            quads.erase(southWest);
-            quads.erase(southEast);
+            for (auto const &child: children_map){
+                quads.erase(child.second);
+            }
             deleteChildren();
+            deleteNode();
             leaf = true;
-            numNodes = 0;
         }
     }
     updateCount();
@@ -437,7 +455,8 @@ bool QuadTree::Remove(std::shared_ptr<Node> n,std::unordered_set<QuadTree*>& qua
 }
 
 void QuadTree::Update(std::shared_ptr<OnGPIS> _gp)
-{
+{   
+    deleteGP();
     gp = _gp;
 }
 
@@ -459,10 +478,9 @@ bool QuadTree::Update(std::shared_ptr<Node> n){
     if (IsLeaf())
         return false;
 
-    if(northWest->Update(n)) return true;
-    if(northEast->Update(n)) return true;
-    if(southWest->Update(n)) return true;
-    if(southEast->Update(n)) return true;
+    for (auto const &child: children_map)
+        if (child.second->Update(n))
+            return true;
 
     return false;
 }
@@ -487,26 +505,12 @@ bool QuadTree::Update(std::shared_ptr<Node> n, std::unordered_set<QuadTree*>& qu
     if (IsLeaf())
         return false;
 
-    if(northWest->Update(n,quads)){
-        if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-3)
-            quads.insert(this);
-        return true;
-    }
-    if(northEast->Update(n,quads)) {
-        if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-3)
-            quads.insert(this);
-        return true;
-    }
-    if(southWest->Update(n,quads)) {
-        if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-3)
-            quads.insert(this);
-        return true;
-    }
-    if(southEast->Update(n,quads)) {
-        if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-3)
-            quads.insert(this);
-        return true;
-    }
+    for (auto const &child: children_map)
+        if (child.second->Update(n, quads)){
+            if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-3)
+                quads.insert(this);
+            return true;
+        }
 
     return false;
 }
@@ -530,39 +534,40 @@ void QuadTree::Subdivide()
     Point<float> se_c = Point<float>(c.x+l,c.y-l);
     AABB se(se_c,l);
     southEast =  new QuadTree(se,this);
+    resetChildrenMap();
 
     leaf = false;
 
     return;
 }
 
-void QuadTree::SubdivideExcept(int childType)
+void QuadTree::SubdivideExcept(QuadChildType childType)
 {
     float l = boundary.getHalfLength()*0.5;
     Point<float> c = boundary.getCenter();
 
-    if (childType != CHILD_TYPE_NW)
+    if (childType != QuadChildType::NW)
     {
         Point<float> nw_c = Point<float>(c.x-l,c.y+l);
         AABB nw(nw_c,l);
         northWest = new QuadTree(nw,this);
     }
 
-    if (childType != CHILD_TYPE_NE)
+    if (childType != QuadChildType::NE)
     {
         Point<float> ne_c = Point<float>(c.x+l,c.y+l);
         AABB ne(ne_c,l);
         northEast = new QuadTree(ne,this);
     }
 
-    if (childType != CHILD_TYPE_SW)
+    if (childType != QuadChildType::SW)
     {
         Point<float> sw_c = Point<float>(c.x-l,c.y-l);
         AABB sw(sw_c,l);
         southWest = new QuadTree(sw,this);
     }
 
-    if (childType != CHILD_TYPE_SE)
+    if (childType != QuadChildType::SE)
     {
         Point<float> se_c = Point<float>(c.x+l,c.y-l);
         AABB se(se_c,l);
@@ -589,10 +594,8 @@ void QuadTree::QueryRange(AABB range, std::vector<std::shared_ptr<Node> >& nodes
     }
 
     // Otherwise, add the points from the children
-    northWest->QueryRange(range,nodes);
-    northEast->QueryRange(range,nodes);
-    southWest->QueryRange(range,nodes);
-    southEast->QueryRange(range,nodes);
+    for (auto const &child: children_map)
+        child.second->QueryRange(range,nodes);
 
     return ;
  }
@@ -608,12 +611,29 @@ void QuadTree::getAllChildrenNonEmptyNodes(std::vector<std::shared_ptr<Node> >& 
          return;
      }
 
-     northWest->getAllChildrenNonEmptyNodes(nodes);
-     northEast->getAllChildrenNonEmptyNodes(nodes);
-     southWest->getAllChildrenNonEmptyNodes(nodes);
-     southEast->getAllChildrenNonEmptyNodes(nodes);
-     return;
+    for (auto const &child: children_map)
+        child.second->getAllChildrenNonEmptyNodes(nodes);
+
+    return;
 }
+
+void QuadTree::getChildNonEmptyNodes(QuadChildType c, std::vector<std::shared_ptr<Node> >& nodes)
+{
+     if (IsEmptyLeaf())
+         return;
+
+     if (IsLeaf())
+     {
+         nodes.push_back(node);
+         return;
+     }
+
+    if (children_map[c]!=nullptr)
+        children_map[c]->getAllChildrenNonEmptyNodes(nodes);
+
+    return;
+}
+
 
 void QuadTree::QueryNonEmptyLevelC(AABB range, std::vector<QuadTree*>& quads)
 {
@@ -630,10 +650,8 @@ void QuadTree::QueryNonEmptyLevelC(AABB range, std::vector<QuadTree*>& quads)
 
     if (boundary.getHalfLength() > (QuadTree::param.cluster_halfleng+0.001)){
         // Otherwise, add the points from the children
-        northWest->QueryNonEmptyLevelC(range,quads);
-        northEast->QueryNonEmptyLevelC(range,quads);
-        southWest->QueryNonEmptyLevelC(range,quads);
-        southEast->QueryNonEmptyLevelC(range,quads);
+        for (auto const &child: children_map)
+            child.second->QueryNonEmptyLevelC(range,quads);
     }
     else
     {
@@ -659,10 +677,8 @@ void QuadTree::QueryNonEmptyLevelC(AABB range, std::vector<QuadTree*>& quads, st
 
     if (boundary.getHalfLength() > QuadTree::param.cluster_halfleng+0.001){
         // Otherwise, add the points from the children
-        northWest->QueryNonEmptyLevelC(range,quads,sqdst);
-        northEast->QueryNonEmptyLevelC(range,quads,sqdst);
-        southWest->QueryNonEmptyLevelC(range,quads,sqdst);
-        southEast->QueryNonEmptyLevelC(range,quads,sqdst);
+        for (auto const &child: children_map)
+            child.second->QueryNonEmptyLevelC(range,quads,sqdst);
     }
     else
     {

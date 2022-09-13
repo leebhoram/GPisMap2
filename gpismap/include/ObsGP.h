@@ -91,7 +91,7 @@ class ObsGP1D : public ObsGP{
 
 public:
     ObsGP1D():nSamples(0){}
-    ~ObsGP1D(){}
+    ~ObsGP1D(){reset();}
     void reset();
 
     // NOTE: In 1D, it must be f > 0.
@@ -127,7 +127,7 @@ class ObsGP2D : public ObsGP{
                               DEFAULT_OBSGP_GROUP_SZ2};
 public:
     ObsGP2D(){}
-    ~ObsGP2D(){}
+    ~ObsGP2D(){reset();}
     void reset();
 
     void getNumValidPoints(std::vector<int> &nPts);

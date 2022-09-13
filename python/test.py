@@ -43,6 +43,9 @@ def main():
             ax.pcolor(xg, yg, sdf)
             plt.show()
         break
+        
+    gp.reset()
+    input("Press Enter to end...")
     
 
 if __name__ == "__main__":

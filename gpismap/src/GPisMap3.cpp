@@ -62,23 +62,23 @@ static std::array<float,9> quat2dcm(float q[4]){
     return dcm;
 }
 
-GPisMap3::GPisMap3():t(0),
-                     gpo(0),
+GPisMap3::GPisMap3():t(nullptr),
+                     gpo(nullptr),
                      obs_numdata(0)
 {
     init();
 }
 
-GPisMap3::GPisMap3(GPisMap3Param par):t(0),
-                                      gpo(0),
+GPisMap3::GPisMap3(GPisMap3Param par):t(nullptr),
+                                      gpo(nullptr),
                                       obs_numdata(0),
                                       setting(par)
 {
     init();
 }
 
-GPisMap3::GPisMap3(GPisMap3Param par, camParam c):t(0),
-                                                  gpo(0),
+GPisMap3::GPisMap3(GPisMap3Param par, camParam c):t(nullptr),
+                                                  gpo(nullptr),
                                                   obs_numdata(0),
                                                   setting(par),
                                                   cam(c)
@@ -97,19 +97,19 @@ void GPisMap3::init(){
 }
 
 void GPisMap3::reset(){
-    if (t!=0){
+    
+    activeSet.clear();
+
+    if (t!=nullptr){
         delete t;
-        t = 0;
+        t = nullptr;
     }
 
-    if (gpo!=0){
-        delete gpo;
-        gpo = 0;
+    if (gpo!=nullptr){
+        gpo.reset(nullptr);
     }
 
     obs_numdata = 0;
-
-    activeSet.clear();
 
     return;
 }
@@ -245,8 +245,8 @@ void GPisMap3::update(float * dataz, int N, std::vector<float> & pose)
 bool GPisMap3::regressObs(){
 
     int dim[2];
-    if (gpo == 0){
-        gpo = new ObsGP2D();
+    if (gpo == nullptr){
+        gpo = std::make_unique<ObsGP2D>();
     }
 
     if (2*obs_zinv.size() != vu_grid.size())
@@ -263,16 +263,17 @@ bool GPisMap3::regressObs(){
 
 void GPisMap3::updateMapPoints(){
    
-    if (t!=0 && gpo !=0){
+    if (t!=nullptr && gpo !=nullptr){
         AABB3 searchbb(pose_tr[0],pose_tr[1],pose_tr[2],range_obs_max);
         std::vector<OcTree*> oc;
         t->QueryNonEmptyLevelC(searchbb,oc);
 
         if (oc.size() > 0){
 
+            std::vector<std::shared_ptr<Node3> > nodes;
             float r2 = range_obs_max*range_obs_max;
             int k=0;
-            for (auto it = oc.begin(); it != oc.end(); it++, k++) {
+            for (auto it = oc.cbegin(); it != oc.cend(); it++, k++) {
 
                 Point3<float> ct = (*it)->getCenter();
                 float l = (*it)->getHalfLength();
@@ -282,41 +283,22 @@ void GPisMap3::updateMapPoints(){
                     continue;
                 }
 
-                std::vector<Point3<float> > ext;
-                ext.push_back((*it)->getNWF());
-                ext.push_back((*it)->getNEF());
-                ext.push_back((*it)->getSWF());
-                ext.push_back((*it)->getSEF());
-                ext.push_back((*it)->getNWB());
-                ext.push_back((*it)->getNEB());
-                ext.push_back((*it)->getSWB());
-                ext.push_back((*it)->getSEB());
-
-                int within_angle = 0;
-                for (auto it_ = ext.begin();it_ != ext.end(); it_++){
-                    float x_loc = pose_R[0]*((*it_).x-pose_tr[0])+pose_R[1]*((*it_).y-pose_tr[1])+pose_R[2]*((*it_).z-pose_tr[2]);
-                    float y_loc = pose_R[3]*((*it_).x-pose_tr[0])+pose_R[4]*((*it_).y-pose_tr[1])+pose_R[5]*((*it_).z-pose_tr[2]);
-                    float z_loc = pose_R[6]*((*it_).x-pose_tr[0])+pose_R[7]*((*it_).y-pose_tr[1])+pose_R[8]*((*it_).z-pose_tr[2]);
+                std::map<OctChildType, Point3<float> > const &children_centers = (*it)->getAllChildrenCenter();
+                for (auto const &child: children_centers){                   
+                    float x_loc = pose_R[0]*(child.second.x-pose_tr[0])+pose_R[1]*(child.second.y-pose_tr[1])+pose_R[2]*(child.second.z-pose_tr[2]);
+                    float y_loc = pose_R[3]*(child.second.x-pose_tr[0])+pose_R[4]*(child.second.y-pose_tr[1])+pose_R[5]*(child.second.z-pose_tr[2]);
+                    float z_loc = pose_R[6]*(child.second.x-pose_tr[0])+pose_R[7]*(child.second.y-pose_tr[1])+pose_R[8]*(child.second.z-pose_tr[2]);
                     if (z_loc > 0){
                         float xv = x_loc/z_loc;
                         float yv = y_loc/z_loc;
 
-                        within_angle = int( (xv > u_obs_limit[0]) && (xv < u_obs_limit[1]) && ( yv > v_obs_limit[0]) && (yv < v_obs_limit[1]));
+                        bool within_angle = (xv > u_obs_limit[0]) && (xv < u_obs_limit[1]) && ( yv > v_obs_limit[0]) && (yv < v_obs_limit[1]);
+                        if (within_angle)
+                            (*it)->getChildNonEmptyNodes(child.first,nodes);
                     }
-
-                }
-
-                if (within_angle == 0){
-                    continue;
-                }
-
-                // Get all the nodes
-                std::vector<std::shared_ptr<Node3> > nodes;
-                (*it)->getAllChildrenNonEmptyNodes(nodes);
-
-                reEvalPoints(nodes);
-
+                }              
             }
+            reEvalPoints(nodes);
         }
 
     }
@@ -325,6 +307,57 @@ void GPisMap3::updateMapPoints(){
 }
 
 void GPisMap3::reEvalPoints(std::vector<std::shared_ptr<Node3> >& nodes){
+    int num_elements = nodes.size();
+    if (num_elements < 1)
+        return;
+
+    int num_threads = std::thread::hardware_concurrency();
+    std::vector<std::thread> threads;
+    int num_threads_to_use = num_threads;
+    
+    if (num_elements < num_threads){
+        num_threads_to_use = num_elements;
+    }
+    else{
+        num_threads_to_use = num_threads;
+    }
+    int num_leftovers = num_elements % num_threads_to_use;
+    int batch_size = num_elements / num_threads_to_use;
+    int element_cursor = 0;
+    for(int i = 0; i < num_leftovers; ++i){
+        std::thread thread_i = std::thread(&GPisMap3::reEvalPoints_kernel,
+                                 std::ref(*this),
+                                 i,
+                                 element_cursor,
+                                 element_cursor + batch_size + 1,
+                                 std::ref(nodes));
+        threads.push_back(std::move(thread_i));
+        element_cursor += batch_size + 1;
+
+    }
+    for (int i = num_leftovers; i < num_threads_to_use; ++i){
+        std::thread thread_i = std::thread(&GPisMap3::reEvalPoints_kernel,
+                                 std::ref(*this),
+                                 i,
+                                 element_cursor,
+                                 element_cursor + batch_size,
+                                 std::ref(nodes));
+        threads.push_back(std::move(thread_i));
+        element_cursor += batch_size;
+    }
+
+    for (auto & th : threads){
+        if (th.joinable())
+            th.join();
+    }
+}
+
+
+
+void GPisMap3::reEvalPoints_kernel( int thread_idx,
+                                    int start_idx,
+                                    int end_idx,
+                                    std::vector<std::shared_ptr<Node3> >& nodes){    
 
     // placeholders
     EMatrixX vu(2,1);
@@ -337,7 +370,7 @@ void GPisMap3::reEvalPoints(std::vector<std::shared_ptr<Node3> >& nodes){
     float w = 1.0/6.0;
 
     // For each point
-    for (auto it=nodes.begin(); it != nodes.end(); it++){
+    for (auto it=nodes.cbegin()+start_idx; it != nodes.cbegin()+end_idx; it++){
 
         Point3<float> pos = (*it)->getPos();
 
@@ -345,8 +378,9 @@ void GPisMap3::reEvalPoints(std::vector<std::shared_ptr<Node3> >& nodes){
         float y_loc = pose_R[3]*(pos.x-pose_tr[0])+pose_R[4]*(pos.y-pose_tr[1])+pose_R[5]*(pos.z-pose_tr[2]);
         float z_loc = pose_R[6]*(pos.x-pose_tr[0])+pose_R[7]*(pos.y-pose_tr[1])+pose_R[8]*(pos.z-pose_tr[2]);
 
-        if (z_loc < 0.0)
+        if (z_loc < 0.0){
             continue;
+        }
 
         vu(0) = y_loc/z_loc;
         vu(1) = x_loc/z_loc;
@@ -355,14 +389,16 @@ void GPisMap3::reEvalPoints(std::vector<std::shared_ptr<Node3> >& nodes){
         gpo->test(vu,rinv0,var);
 
         // If unobservable, continue
-        if (var(0) > setting.obs_var_thre)
+        if (var(0) > setting.obs_var_thre){
             continue;
+        }
 
         float oc = occ_test(rinv, rinv0(0), z_loc*30.0);
 
         // If unobservable, continue
-        if (oc < -0.02) // TO-DO : set it as a parameter
+        if (oc < -0.02) {
             continue;
+        }
 
         // gradient in the local coord.
         Point3<float> grad = (*it)->getGrad();
@@ -446,8 +482,9 @@ void GPisMap3::reEvalPoints(std::vector<std::shared_ptr<Node3> >& nodes){
             r0_mean += w*r0;
         }
 
-        if (var(0) > setting.obs_var_thre)// invalid
+        if (var(0) > setting.obs_var_thre){
             continue;
+        }
 
         Point3<float> grad_new_loc,grad_new;
 
@@ -501,7 +538,7 @@ void GPisMap3::reEvalPoints(std::vector<std::shared_ptr<Node3> >& nodes){
         float grad_noise_sum = (grad_noise_old + grad_noise);
 
          // Now, update
-        if (grad_noise_old > 0.5 || grad_noise_old > 0.6){
+        if (noise_old > 0.5 || grad_noise_old > 0.6){
            ;
         }
         else{
@@ -538,8 +575,12 @@ void GPisMap3::reEvalPoints(std::vector<std::shared_ptr<Node3> >& nodes){
             grad_noise = std::min((float)1.0, std::max(grad_noise*grad_noise_old/grad_noise_sum + dist, setting.map_noise_param));
             noise = std::max((noise*noise_old/pos_noise_sum + dist), setting.map_noise_param);
         }
-        // remove
-        t->Remove(*it,activeSet);
+
+        {
+            std::lock_guard<std::mutex> lock(mux);
+            // remove
+            t->Remove(*it);
+        }
 
         if (noise > 1.0 && grad_noise > 0.61){
             continue;
@@ -550,33 +591,40 @@ void GPisMap3::reEvalPoints(std::vector<std::shared_ptr<Node3> >& nodes){
             std::unordered_set<OcTree*> vecInserted;
 
             bool succeeded = false;
-            if (!t->IsNotNew(p)){
-                succeeded = t->Insert(p,vecInserted);
-                if (succeeded){
-                    if (t->IsRoot() == false){
-                        t = t->getRoot();
+            {
+                std::lock_guard<std::mutex> lock(mux);
+                if (!t->IsNotNew(p)){
+                    succeeded = t->Insert(p,vecInserted);
+                    if (succeeded){
+                        if (t->IsRoot() == false){
+                            t = t->getRoot();
+                        }
                     }
                 }
             }
 
-            if ((succeeded == 0) || !(vecInserted.size() > 0)) // if failed, then continue to test the next point
+            if ((succeeded == false) || !(vecInserted.size() > 0)) {// if failed, then continue to test the next point
                 continue;
+            }
 
             // update the point
             p->updateData(-setting.fbias, noise, grad_new, grad_noise, NODE_TYPE::HIT);
 
-            for (auto itv = vecInserted.begin(); itv != vecInserted.end(); itv++)
+            // supposed to have one element
+            auto itv = vecInserted.cbegin(); 
+            {   
+                std::lock_guard<std::mutex> lock(mux);
                 activeSet.insert(*itv);
+            }
+            vecInserted.clear();
         }
-
     }
-
     return;
 }
 
 void GPisMap3::addNewMeas(){
     // create if not initialized
-    if (t == 0){
+    if (t == nullptr){
         t = new OcTree(Point3<float>(0.0,0.0,0.0));
     }
     evalPoints();
@@ -584,14 +632,57 @@ void GPisMap3::addNewMeas(){
 }
 
 void GPisMap3::evalPoints(){
+    if (obs_numdata < 1)
+        return;
+    int num_elements = obs_numdata;
+    int num_threads = std::thread::hardware_concurrency();
+    std::vector<std::thread> threads;
+    int num_threads_to_use = num_threads;
+    
+    if (num_elements < num_threads){
+        num_threads_to_use = num_elements;
+    }
+    else{
+        num_threads_to_use = num_threads;
+    }
+    int num_leftovers = num_elements % num_threads_to_use;
+    int batch_size = num_elements / num_threads_to_use;
+    int element_cursor = 0;
+    for(int i = 0; i < num_leftovers; ++i){
+        std::thread thread_i = std::thread(&GPisMap3::evalPoints_kernel,
+                                 std::ref(*this),
+                                 i,
+                                 element_cursor,
+                                 element_cursor + batch_size + 1);
+        threads.push_back(std::move(thread_i));
+        element_cursor += batch_size + 1;
+    }
+    for (int i = num_leftovers; i < num_threads_to_use; ++i){
+        std::thread thread_i = std::thread(&GPisMap3::evalPoints_kernel,
+                                 std::ref(*this),
+                                 i,
+                                 element_cursor,
+                                 element_cursor + batch_size);
+        threads.push_back(std::move(thread_i));
+        element_cursor += batch_size;
+    }
+
+    for (auto & th : threads){
+        if (th.joinable())
+            th.join();
+    }
+}
+void GPisMap3::evalPoints_kernel(int thread_idx,
+                                int start_idx,
+                                int end_idx){
   
-     if (t == 0 || obs_numdata < 1)
+     if (t == nullptr || obs_numdata < 1)
          return;
 
     float w = 1.0/6.0;
-    int k=0;
+
     // For each point
-    for (; k<obs_numdata; k++){
+    for (int k=start_idx; k<end_idx; k++){
         int k2 = 2*k;
         int k3 = 3*k;
 
@@ -616,16 +707,19 @@ void GPisMap3::evalPoints(){
         std::unordered_set<OcTree*> vecInserted;
 
         bool succeeded = false;
-        if (!t->IsNotNew(p)){
-            succeeded = t->Insert(p,vecInserted);
-            if (succeeded){
-                if (t->IsRoot() == false){
-                    t = t->getRoot();
+        {
+            std::lock_guard<std::mutex> lock(mux);
+            if (!t->IsNotNew(p)){
+                succeeded = t->Insert(p,vecInserted);
+                if (succeeded){
+                    if (t->IsRoot() == false){
+                        t = t->getRoot();
+                    }
                 }
             }
         }
 
-        if ((succeeded == 0) || !(vecInserted.size() > 0)) // if failed, then continue to test the next point
+        if ((succeeded == false) || !(vecInserted.size() > 0)) // if failed, then continue to test the next point
             continue;
 
         /////////////////////////////////////////////////////////////////
@@ -655,7 +749,10 @@ void GPisMap3::evalPoints(){
         }
 
         if (var(0) > setting.obs_var_thre){
-            t->Remove(p);
+            {
+                std::lock_guard<std::mutex> lock(mux);
+                t->Remove(p);
+            }
             continue;
         }
 
@@ -692,10 +789,13 @@ void GPisMap3::evalPoints(){
         // update the point
         p->updateData(-setting.fbias, noise, grad,grad_noise, NODE_TYPE::HIT);
 
-        for (auto it = vecInserted.begin(); it != vecInserted.end(); it++){
-            activeSet.insert(*it);
+        // supposed to have one element
+        auto itv = vecInserted.cbegin(); 
+        {
+            std::lock_guard<std::mutex> lock(mux);
+            activeSet.insert(*itv);
         }
-
+        vecInserted.clear();
     }
  
     return;
@@ -704,19 +804,18 @@ void GPisMap3::evalPoints(){
 void GPisMap3::updateGPs_kernel(int thread_idx,
                                 int start_idx,
                                 int end_idx,
-                                OcTree **nodes_to_update){
+                                std::vector<OcTree*>& nodes_to_update){
     std::vector<std::shared_ptr<Node3> > res;
-    for (int i = start_idx; i < end_idx; ++i){
-        if (nodes_to_update[i] != 0){
-            Point3<float> ct = (nodes_to_update[i])->getCenter();
-            float l = (nodes_to_update[i])->getHalfLength();
+    for (auto it = nodes_to_update.begin()+start_idx; it != nodes_to_update.begin()+end_idx; it++){
+        if ((*it) != nullptr){
+            Point3<float> ct = (*it)->getCenter();
+            float l = (*it)->getHalfLength();
             AABB3 searchbb(ct.x,ct.y,ct.z, l*Rtimes);
             res.clear();
             t->QueryRange(searchbb,res);
             if (res.size()>0){
-                std::shared_ptr<OnGPIS> gp(new OnGPIS(setting.map_scale_param, setting.map_noise_param));
-                gp->train(res);
-                (nodes_to_update[i])->Update(gp);
+                (*it)->InitGP(setting.map_scale_param, setting.map_noise_param);
+                (*it)->UpdateGP(res);
             }
         }
     }
@@ -725,14 +824,14 @@ void GPisMap3::updateGPs_kernel(int thread_idx,
 
 void GPisMap3::updateGPs(){
     
-    std::unordered_set<OcTree*> updateSet(activeSet);
+    std::unordered_set<OcTree*> updateSet;
 
     int num_threads = std::thread::hardware_concurrency();
-    std::thread *threads = new std::thread[num_threads];
+    std::vector<std::thread> threads;
 
     int num_threads_to_use = num_threads;
 
-    for (auto it = activeSet.begin(); it!= activeSet.end(); it++){
+    for (auto it = activeSet.cbegin(); it!= activeSet.cend(); it++){
 
         Point3<float> ct = (*it)->getCenter();
         float l = (*it)->getHalfLength();
@@ -740,7 +839,7 @@ void GPisMap3::updateGPs(){
         std::vector<OcTree*> qs;
         t->QueryNonEmptyLevelC(searchbb,qs);
         if (qs.size()>0){
-            for (auto itq = qs.begin(); itq!=qs.end(); itq++){
+            for (auto itq = qs.cbegin(); itq!=qs.cend(); itq++){
                 updateSet.insert(*itq);
             }
         }
@@ -750,10 +849,10 @@ void GPisMap3::updateGPs(){
     if (num_elements < 1)
         return;
 
-    OcTree **nodes_to_update = new OcTree*[num_elements];
+    std::vector<OcTree *> nodes_to_update;
     int it_counter = 0;
-    for (auto it = updateSet.begin(); it != updateSet.end(); ++it, ++it_counter){
-        nodes_to_update[it_counter] = *it;
+    for (auto const & node: updateSet){
+        nodes_to_update.push_back(node);
     }
 
     if (num_elements < num_threads){
@@ -766,31 +865,32 @@ void GPisMap3::updateGPs(){
     int batch_size = num_elements / num_threads_to_use;
     int element_cursor = 0;
     for(int i = 0; i < num_leftovers; ++i){
-        threads[i] = std::thread(&GPisMap3::updateGPs_kernel,
-                                 this,
-                                 i,
-                                 element_cursor,
-                                 element_cursor + batch_size + 1,
-                                 nodes_to_update);
+        std::thread thread_i = std::thread(&GPisMap3::updateGPs_kernel,
+                                             std::ref(*this),
+                                             i,
+                                             element_cursor,
+                                             element_cursor + batch_size + 1,
+                                             std::ref(nodes_to_update));
+        threads.push_back(std::move(thread_i));
         element_cursor += batch_size + 1;
 
     }
     for (int i = num_leftovers; i < num_threads_to_use; ++i){
-        threads[i] = std::thread(&GPisMap3::updateGPs_kernel,
-                                 this,
+        std::thread thread_i = std::thread(&GPisMap3::updateGPs_kernel,
+                                 std::ref(*this),
                                  i,
                                  element_cursor,
                                  element_cursor + batch_size,
-                                 nodes_to_update);
+                                 std::ref(nodes_to_update));
+        threads.push_back(std::move(thread_i));
         element_cursor += batch_size;
     }
 
-    for (int i = 0; i < num_threads_to_use; ++i){
-        threads[i].join();
+    for (auto & th : threads){
+        if (th.joinable())
+            th.join();
     }
 
-    delete [] nodes_to_update;
-    delete [] threads;
     // clear active set once all the jobs for update are done.
     activeSet.clear();
 
@@ -815,14 +915,14 @@ void GPisMap3::test_kernel(int thread_idx,
 
         // query Cs
         AABB3 searchbb(xt(0),xt(1),xt(2),C_leng*3.0);
-        std::vector<OcTree*> quads;
+        std::vector<OcTree*> octs;
         std::vector<float> sqdst;
-        t->QueryNonEmptyLevelC(searchbb,quads,sqdst);
+        t->QueryNonEmptyLevelC(searchbb,octs,sqdst);
 
         res[k8+4] = 1.0 + setting.map_noise_param ; // variance of sdf value
 
-        if (quads.size() == 1){
-            std::shared_ptr<OnGPIS> gp = quads[0]->getGP();
+        if (octs.size() == 1){
+            std::shared_ptr<OnGPIS> gp = octs[0]->getGP();
             if (gp != nullptr){
                 gp->testSinglePoint(xt,res[k8],&res[k8+1],&res[k8+4]);
             }
@@ -835,7 +935,7 @@ void GPisMap3::test_kernel(int thread_idx,
             std::sort(  std::begin(idx), std::end(idx),[&](int i1, int i2) { return sqdst[i1] < sqdst[i2]; } );
 
             // get THE FIRST gp pointer
-            std::shared_ptr<OnGPIS> gp = quads[idx[0]]->getGP();
+            std::shared_ptr<OnGPIS> gp = octs[idx[0]]->getGP();
             if (gp != nullptr){
                 gp->testSinglePoint(xt,res[k8],&res[k8+1],&res[k8+4]);
             }
@@ -855,7 +955,7 @@ void GPisMap3::test_kernel(int thread_idx,
                     int m_1 = m+1;
                     int m3 = m_1*3;
                     int m4 = m_1*4;
-                    gp = quads[idx[m_1]]->getGP();
+                    gp = octs[idx[m_1]]->getGP();
                     gp->testSinglePoint(xt,f2[m_1],&grad2[m3],&var2[m4]);
                 }
 
@@ -908,7 +1008,7 @@ void GPisMap3::test_kernel(int thread_idx,
 }
 
 bool GPisMap3::test(float * x, int dim, int leng, float * res){
-    if (x == 0 || dim != mapDimension || leng < 1)
+    if (x == nullptr || dim != mapDimension || leng < 1)
         return false;
 
     int num_threads = std::thread::hardware_concurrency();
@@ -919,37 +1019,38 @@ bool GPisMap3::test(float * x, int dim, int leng, float * res){
     else{
         num_threads_to_use = num_threads;
     }
-    std::thread *threads = new std::thread[num_threads_to_use];
+    std::vector<std::thread> threads;
 
     int num_leftovers = leng % num_threads_to_use;
     int batch_size = leng / num_threads_to_use;
     int element_cursor = 0;
 
     for(int i = 0; i < num_leftovers; ++i){
-        threads[i] = std::thread(&GPisMap3::test_kernel,
-                                 this,
+        std::thread thread_i = std::thread(&GPisMap3::test_kernel,
+                                 std::ref(*this),
                                  i,
                                  element_cursor,
                                  element_cursor + batch_size + 1,
                                  x, res);
+        threads.push_back(std::move(thread_i));
         element_cursor += batch_size + 1;
 
     }
     for (int i = num_leftovers; i < num_threads_to_use; ++i){
-        threads[i] = std::thread(&GPisMap3::test_kernel,
-                                 this,
+        std::thread thread_i = std::thread(&GPisMap3::test_kernel,
+                                 std::ref(*this),
                                  i,
                                  element_cursor,
                                  element_cursor + batch_size,
                                  x, res);
+        threads.push_back(std::move(thread_i));
         element_cursor += batch_size;
     }
 
-    for (int i = 0; i < num_threads_to_use; ++i){
-        threads[i].join();
+    for (auto & th : threads){
+        if (th.joinable())
+            th.join();
     }
-
-    delete [] threads;
 
     return true;
 }
@@ -958,7 +1059,7 @@ void GPisMap3::getAllPoints(std::vector<float> & pos)
 {
     pos.clear();
 
-    if (t==0)
+    if (t==nullptr)
         return;
 
     std::vector<std::shared_ptr<Node3> > nodes;

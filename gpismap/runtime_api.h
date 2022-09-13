@@ -8,6 +8,7 @@ extern "C" {
 
 int create_gpm_instance(GPMHandle *gh);
 int delete_gpm_instance(GPMHandle gh);
+int reset_gpm(GPMHandle gh);
 int config_gpm(GPMHandle gh, const char* p_key, void *p_value);
 int update_gpm(GPMHandle gh, float * datax,  float * dataf, int N, float* pose); // pose[6]
 int test_gpm(GPMHandle gh, float * x,  int dim,  int leng, float* res); 

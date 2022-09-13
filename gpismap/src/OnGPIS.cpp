@@ -28,6 +28,11 @@ void OnGPIS::reset(){
     nSamples = 0;
     trained = false;
 
+    x.resize(0,0);
+    L.resize(0,0);
+    alpha.resize(0);
+    gradflag.clear();
+
     return;
 }
 
@@ -52,7 +57,7 @@ void OnGPIS::train(const vecNode& samples){
 
         int k=0;
         int count = 0;
-        for (auto it = samples.begin(); it!=samples.end(); it++, k++){
+        for (auto it = samples.cbegin(); it!=samples.cend(); it++, k++){
             x(0,k) = (*it)->getPosX();
             x(1,k) = (*it)->getPosY();
             grad(0,k) = (*it)->getGradX();
@@ -109,7 +114,7 @@ void OnGPIS::train(const vecNode3& samples){
 
         int k=0;
         int count = 0;
-        for (auto it = samples.begin(); it!=samples.end(); it++, k++){
+        for (auto it = samples.cbegin(); it!=samples.cend(); it++, k++){
             x(0,k) = (*it)->getPosX();
             x(1,k) = (*it)->getPosY();
             x(2,k) = (*it)->getPosZ();

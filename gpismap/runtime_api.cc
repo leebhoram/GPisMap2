@@ -12,6 +12,14 @@ int delete_gpm_instance(GPMHandle gh){
     return 1;
 }
 
+
+int reset_gpm(GPMHandle gh){
+    if (gh != NULL){
+        gh->reset();
+    }
+    return 1;
+}
+
 int config_gpm(GPMHandle gh, const char *p_key, void *p_value) {
     if (gh != NULL){
         gh->setParam(p_key, p_value);

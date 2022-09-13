@@ -21,6 +21,7 @@
 #define __OCTREE_H_
 
 #include <vector>
+#include <map>
 #include <unordered_set>
 #include <memory>
 #include <iostream>
@@ -135,27 +136,18 @@ public:
     }
 };
 
+enum class OctChildType {undefined, NWF, NEF, SWF, SEF, NWB, NEB, SWB, SEB};
+
 class OcTree
 {
-    // Arbitrary constant to indicate how many elements can be stored in this quad tree node
-    const int CHILD_TYPE_NWF = 1;
-    const int CHILD_TYPE_NEF = 2;
-    const int CHILD_TYPE_SWF = 3;
-    const int CHILD_TYPE_SEF = 4;
-    const int CHILD_TYPE_NWB = 5;
-    const int CHILD_TYPE_NEB = 6;
-    const int CHILD_TYPE_SWB = 7;
-    const int CHILD_TYPE_SEB = 8;
-
-    // Axis-aligned bounding box stored as a center with half-dimensions
-    // to represent the boundaries of this quad tree
+    // Axis-aligned bounding box stored as a center with half-dimensionss
+    // to represent the boundaries of this oct tree
     AABB3 boundary;
 
     static tree_param param;    // see strct.h for definition
 
-    // Points in this quad tree node
+    // Points in this oct tree node
     std::shared_ptr<Node3> node;
-    std::shared_ptr<Node3> closestChildNode; // representative point (clasest to the center)
     std::shared_ptr<OnGPIS> gp;
 
     bool leaf;
@@ -176,13 +168,20 @@ class OcTree
 
     OcTree* par;
 
-    void Subdivide(); // create four children that fully divide this quad into four quads of equal area
-    void SubdivideExcept(int childType);
+    std::map<OctChildType, OcTree*> children_map;
+    std::map<OctChildType, Point3<float>> children_center;
+
+    void Subdivide(); // create four children that fully divide this oct into four octs of equal area
+    void SubdivideExcept(OctChildType childType);
     void deleteChildren();
+    void deleteNode();
+    void deleteGP();
+    void resetChildrenMap();
+    void updateChildrenCenter();
     bool InsertToParent(std::shared_ptr<Node3> n);
 
-    OcTree(AABB3 _boundary, OcTree* const p =0 );
-    OcTree(AABB3 _boundary, OcTree* const ch, int child_type);
+    OcTree(AABB3 _boundary, OcTree* const p = nullptr );
+    OcTree(AABB3 _boundary, OcTree* const ch, OctChildType child_type);
 
 protected:
     void setParent(OcTree* const p){par = p;}
@@ -194,28 +193,25 @@ protected:
     }
 public:
     // Methods
-    OcTree():northWestFront(0),
-            northEastFront(0),
-            southWestFront(0),
-            southEastFront(0),
-            northWestBack(0),
-            northEastBack(0),
-            southWestBack(0),
-            southEastBack(0),
-            par(0),
+    OcTree():northWestFront(nullptr),
+            northEastFront(nullptr),
+            southWestFront(nullptr),
+            southEastFront(nullptr),
+            northWestBack(nullptr),
+            northEastBack(nullptr),
+            southWestBack(nullptr),
+            southEastBack(nullptr),
+            par(nullptr),
             maxDepthReached(false),
             rootLimitReached(false),
             leaf(true),
             numNodes(0),
             node(nullptr),
-            closestChildNode(nullptr),
             gp(nullptr){}
 
     OcTree(Point3<float> c);
 
-    ~OcTree(){
-        deleteChildren();
-    }
+    ~OcTree();
 
     bool IsRoot(){
         if (par)
@@ -227,20 +223,21 @@ public:
     OcTree* const getRoot();
 
     bool Insert(std::shared_ptr<Node3> n);
-    bool Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& quads);
+    bool Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs);
     bool IsNotNew(std::shared_ptr<Node3> n);
     bool Update(std::shared_ptr<Node3> n);
-    bool Update(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& quads);
-    bool Remove(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& quads);
+    bool Update(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs);
+    bool Remove(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs);
 
-    void Update(std::shared_ptr<OnGPIS> _gp);
+    void InitGP(float scale_param, float noise_param);
+    void UpdateGP(const vecNode3& samples);
     std::shared_ptr<OnGPIS> const getGP(){return gp;}
     
     bool Remove(std::shared_ptr<Node3> n);
     void QueryRange(AABB3 range, std::vector<std::shared_ptr<Node3> >& nodes);
-    void QueryNonEmptyLevelC(AABB3 range, std::vector<OcTree*>& quads);
-    void QueryNonEmptyLevelC(AABB3 range, std::vector<OcTree*>& quads, std::vector<float>& sqdst);
-    void QueryNonEmptyLevelC(AABB3 range, std::vector<OcTree*>& quads, std::vector<std::vector<std::shared_ptr<Node3> > >& nodes);
+    void QueryNonEmptyLevelC(AABB3 range, std::vector<OcTree*>& octs);
+    void QueryNonEmptyLevelC(AABB3 range, std::vector<OcTree*>& octs, std::vector<float>& sqdst);
+    void QueryNonEmptyLevelC(AABB3 range, std::vector<OcTree*>& octs, std::vector<std::vector<std::shared_ptr<Node3> > >& nodes);
 
     int32_t getNodeCount(){return numNodes;}
     Point3<float> getCenter(){return boundary.getCenter();}
@@ -250,17 +247,13 @@ public:
     float getYMaxbound(){return boundary.getYMaxbound();}
     float getZMinbound(){return boundary.getZMinbound();}
     float getZMaxbound(){return boundary.getZMaxbound();}
-    Point3<float> getNWF(){return boundary.getNWF();}
-    Point3<float> getNEF(){return boundary.getNEF();}
-    Point3<float> getSWF(){return boundary.getSWF();}
-    Point3<float> getSEF(){return boundary.getSEF();}
-    Point3<float> getNWB(){return boundary.getNWB();}
-    Point3<float> getNEB(){return boundary.getNEB();}
-    Point3<float> getSWB(){return boundary.getSWB();}
-    Point3<float> getSEB(){return boundary.getSEB();}
+    Point3<float> getChildCenter(OctChildType c);
+    std::map<OctChildType, Point3<float>> const & getAllChildrenCenter();
+    std::map<OctChildType, OcTree*> const & getAllChildren();
 
     void getAllChildrenNonEmptyNodes(std::vector<std::shared_ptr<Node3> >& nodes);
-
+    void getChildNonEmptyNodes(OctChildType c, std::vector<std::shared_ptr<Node3> >& nodes);
+    
     void updateCount();
 };
 

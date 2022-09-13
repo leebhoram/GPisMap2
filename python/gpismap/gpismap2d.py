@@ -13,16 +13,19 @@ class GPisMap2D():
         _LIB.create_gpm_instance(ctypes.byref(gm))
         self.gpmap = gm
 
+        config_dict = {}
         if config_yaml is not None:
             import yaml
             print(f"Loading {config_yaml}")
             config_dict = yaml.load(config_yaml)
-        config_dict = {'delx': 0.011}
         for key, val in config_dict.items():
             _LIB.config_gpm(self.gpmap, key.encode("ascii"), ctypes.byref(ctypes.c_float(val)))
 
     def __del__(self):
         _LIB.delete_gpm_instance(self.gpmap)
+
+    def reset(self):
+        _LIB.reset_gpm(self.gpmap)
 
     # int update_gpm(GPMHandle gh, float * datax,  float * dataf, int N, float* pose); // pose[6]
     def update(self, datax:np.ndarray, dataf:np.ndarray, t , R):

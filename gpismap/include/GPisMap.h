@@ -78,12 +78,12 @@ protected:
     bool preproData( float * datax,  float * dataf, int N, std::vector<float> & pose);
     bool regressObs();
     void updateMapPoints();
-    void reEvalPoints(std::vector<std::shared_ptr<Node> >& nodes);
+    void reEvalPoints(std::vector<std::shared_ptr<Node> >&& nodes);
     void evalPoints();
     void addNewMeas();
     void updateGPs();
 
-    ObsGP* gpo;
+    std::unique_ptr<ObsGP> gpo;
     std::vector<float> obs_theta;
     std::vector<float> obs_range;
     std::vector<float> obs_f;
@@ -119,7 +119,7 @@ private:
     void updateGPs_kernel(int thread_idx,
                           int start_idx,
                           int end_idx,
-                          QuadTree **nodes_to_update);
+                          std::vector<QuadTree*>& nodes_to_update);
 };
 
 
