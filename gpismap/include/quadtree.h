@@ -181,6 +181,7 @@ public:
             return true;
     }
 
+    bool IsCluster();
     QuadTree* const getRoot();
 
     // Note: Call this function ONLY BEFORE creating an instance of tree
@@ -209,6 +210,7 @@ public:
     Point<float> getCenter(){return boundary.getCenter();}
     float getHalfLength(){return boundary.getHalfLength();}
     float getXMaxbound(){return boundary.getXMaxbound();}
+    float getXMinbound(){return boundary.getXMinbound();}
     float getYMinbound(){return boundary.getYMinbound();}
     float getYMaxbound(){return boundary.getYMaxbound();}
 

@@ -221,6 +221,7 @@ public:
     }
 
     OcTree* const getRoot();
+    bool IsCluster();
 
     bool Insert(std::shared_ptr<Node3> n);
     bool Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs);
@@ -243,8 +244,9 @@ public:
     Point3<float> getCenter(){return boundary.getCenter();}
     float getHalfLength(){return boundary.getHalfLength();}
     float getXMaxbound(){return boundary.getXMaxbound();}
-    float getYMinbound(){return boundary.getYMinbound();}
+    float getXMinbound(){return boundary.getXMinbound();}
     float getYMaxbound(){return boundary.getYMaxbound();}
+    float getYMinbound(){return boundary.getYMinbound();}
     float getZMinbound(){return boundary.getZMinbound();}
     float getZMaxbound(){return boundary.getZMaxbound();}
     Point3<float> getChildCenter(OctChildType c);

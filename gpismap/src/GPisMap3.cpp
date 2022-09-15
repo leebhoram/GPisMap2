@@ -136,6 +136,7 @@ bool GPisMap3::getAllSamples(float* psamples, int dim, int leng)
     std::vector<float> samples;
     bool res = getAllSamples(samples);
     if (res && (samples.size() == leng*dim)){
+        std::copy(samples.begin(), samples.end(), psamples);
         return true;
     }
 
@@ -1089,27 +1090,4 @@ bool GPisMap3::test(float * x, int dim, int leng, float * res){
     }
 
     return true;
-}
-
-void GPisMap3::getAllPoints(std::vector<float> & pos)
-{
-    pos.clear();
-
-    if (t==nullptr)
-        return;
-
-    std::vector<std::shared_ptr<Node3> > nodes;
-    t->getAllChildrenNonEmptyNodes(nodes);
-
-    int N = nodes.size();
-    if (N> 0){
-        pos.resize(3*N);
-        for (int j=0; j<N; j++) {
-            int j3 = 3*j;
-            pos[j3] = nodes[j]->getPosX();
-            pos[j3+1] = nodes[j]->getPosY();
-            pos[j3+2] = nodes[j]->getPosZ();
-        }
-    }
-    return;
 }

@@ -196,6 +196,13 @@ void QuadTree::UpdateGP(const vecNode& samples)
         gp->train(samples);
 }
 
+bool QuadTree::IsCluster()
+{
+    if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-6)
+        return true;
+    return false;
+}
+
 bool QuadTree::InsertToParent(std::shared_ptr<Node> n){
     float l = getHalfLength();
     Point<float> c = getCenter();

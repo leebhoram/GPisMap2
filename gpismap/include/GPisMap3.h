@@ -123,7 +123,6 @@ public:
     ~GPisMap3();
     void reset();
 
-    void getAllPoints(std::vector<float> & pos);
     // to be called as C API
     void update( float * dataz, int N, float pose[12]);
     // to be called by mex

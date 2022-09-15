@@ -225,6 +225,13 @@ void OcTree::UpdateGP(const vecNode3& samples)
         gp->train(samples);
 }
 
+bool OcTree::IsCluster()
+{
+    if (fabs(getHalfLength()-OcTree::param.cluster_halfleng) < 1e-6)
+        return true;
+    return false;
+}
+
 bool OcTree::InsertToParent(std::shared_ptr<Node3> n){
     float l = getHalfLength();
     Point3<float> c = getCenter();
@@ -379,7 +386,7 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
             {
                 node = n;
                 numNodes = 1;
-                if (fabs(getHalfLength()-OcTree::param.cluster_halfleng) < 1e-6)
+                if (IsCluster())
                     octs.insert(this);
                 return true;
             }
@@ -400,7 +407,7 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
 
     for (auto const &child: children_map)
         if (child.second->Insert(n,octs)){
-            if (fabs(getHalfLength()-OcTree::param.cluster_halfleng) < 1e-6)
+            if (IsCluster())
                 octs.insert(this);
             return true;
         }
@@ -581,7 +588,7 @@ bool OcTree::Update(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
         deleteNode();
         node = n;
         numNodes = 1;
-        if (fabs(getHalfLength()-OcTree::param.cluster_halfleng) < 1e-3)
+        if (IsCluster())
             octs.insert(this);
         return true;
     }
@@ -591,7 +598,7 @@ bool OcTree::Update(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
 
     for (auto const &child: children_map)
         if (child.second->Update(n, octs)){
-            if (fabs(getHalfLength()-OcTree::param.cluster_halfleng) < 1e-3)
+            if (IsCluster())
                 octs.insert(this);
             return true;
         }   
