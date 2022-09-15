@@ -192,12 +192,7 @@ bool GPisMap::getAllSamples(float* psamples, int dim, int leng)
         return 0;
 
     std::vector<float> samples;
-    bool res = getAllSamples(samples);
-
-    if (res && (samples.size() == leng*dim)){
-        return true;
-    }
-    
+    bool res = getAllSamples(samples);    
     if (res && samples.size() == leng*dim){
         std::copy(samples.begin(), samples.end(), psamples);
         return true;
