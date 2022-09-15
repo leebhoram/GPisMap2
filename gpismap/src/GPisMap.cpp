@@ -411,7 +411,7 @@ void GPisMap::reEvalPoints(std::vector<std::shared_ptr<Node> >&& nodes){
             r0_mean += 0.25*r0;
         }
 
-        if (var(0) > setting.obs_var_thre)// invalid
+        if (var(0) > setting.obs_var_thre) // invalid
             continue;
 
         Point<float> grad_new_loc,grad_new;
@@ -648,17 +648,16 @@ void GPisMap::updateGPs_kernel(int thread_idx,
                                int end_idx,
                                std::vector<QuadTree*>& nodes_to_update){
     std::vector<std::shared_ptr<Node> > res;
-    for (int i = start_idx; i < end_idx; ++i){
-        if (nodes_to_update[i] != nullptr){
-            Point<float> ct = (nodes_to_update[i])->getCenter();
-            float l = (nodes_to_update[i])->getHalfLength();
+    for (auto it = nodes_to_update.begin()+start_idx; it != nodes_to_update.begin()+end_idx; it++){
+        if ((*it) != nullptr){
+            Point<float> ct = (*it)->getCenter();
+            float l = (*it)->getHalfLength();
             AABB searchbb(ct.x,ct.y,l*4.0);
             res.clear();
             t->QueryRange(searchbb,res);
             if (res.size()>0){
-                std::shared_ptr<OnGPIS> gp(new OnGPIS(setting.map_scale_param, setting.map_noise_param));
-                gp->train(res);
-                (nodes_to_update[i])->Update(gp);
+                (*it)->InitGP(setting.map_scale_param, setting.map_noise_param);
+                (*it)->UpdateGP(res);
             }
         }
     }

@@ -108,6 +108,9 @@ public:
     bool test( float* x, int dim, int leng, float * res);
 
     int getMapDimension(){return mapDimension;}
+    int getSampleCount();
+    bool getAllSamples(float* psamples, int dim, int leng);
+    bool getAllSamples(std::vector<float> & samples);
 
 private:
     void test_kernel(int thread_idx,

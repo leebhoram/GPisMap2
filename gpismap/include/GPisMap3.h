@@ -131,6 +131,10 @@ public:
     bool test( float* x, int dim, int leng, float * res);
     void resetCam(camParam c);
 
+    int getSampleCount();
+    bool getAllSamples(float* psamples, int dim, int leng);
+    bool getAllSamples(std::vector<float> & samples);
+
 private:
     void test_kernel(int thread_idx,
                      int start_idx,
