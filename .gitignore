@@ -5,3 +5,4 @@
 *__pycache*
 .DS_Store
 build/*
+jnb/*
