@@ -52,9 +52,9 @@ int get_sample_count_gpm(GPMHandle gh)
     return 0;
 }
 
-int get_samples_gpm(GPMHandle gh, float * x,  int dim,  int leng){
+int get_samples_gpm(GPMHandle gh, float * x,  int dim,  int leng, bool grad, bool var){
     if (gh != NULL){
-        if (gh->getAllSamples(x, dim, leng))
+        if (gh->getAllSamples(x, dim, leng, grad, var))
             return 1;
     }
     return 0;
@@ -120,9 +120,9 @@ int get_sample_count_gpm3d(GPM3Handle gh)
     return 0;
 }
 
-int get_samples_gpm3d(GPM3Handle gh, float * x,  int dim,  int leng){
+int get_samples_gpm3d(GPM3Handle gh, float * x,  int dim,  int leng, bool grad, bool var){
     if (gh != NULL){
-        if (gh->getAllSamples(x, dim, leng))
+        if (gh->getAllSamples(x, dim, leng, grad, var))
             return 1;
     }
     return 0;

@@ -128,13 +128,19 @@ int GPisMap3::getSampleCount(){
     return 0;
 }
 
-bool GPisMap3::getAllSamples(float* psamples, int dim, int leng)
+bool GPisMap3::getAllSamples(float* psamples, int dim, int leng, bool grad, bool var)
 {
     if (t==nullptr || dim !=3)
         return false;
 
     std::vector<float> samples;
     bool res = getAllSamples(samples);
+    int32_t data_size = leng*dim;
+    if (grad)
+        data_size = 2*data_size;
+    if (var)
+        data_size += data_size / dim;
+
     if (res && (samples.size() == leng*dim)){
         std::copy(samples.begin(), samples.end(), psamples);
         return true;
@@ -143,7 +149,7 @@ bool GPisMap3::getAllSamples(float* psamples, int dim, int leng)
     return false;
 }
 
-bool GPisMap3::getAllSamples(std::vector<float> & samples)
+bool GPisMap3::getAllSamples(std::vector<float> & samples, bool grad, bool var)
 {
     if (t==nullptr)
         return false;
@@ -156,6 +162,17 @@ bool GPisMap3::getAllSamples(std::vector<float> & samples)
         samples.push_back(node->getPosX());
         samples.push_back(node->getPosY());
         samples.push_back(node->getPosZ());
+        if (grad){
+            samples.push_back(node->getGradX());
+            samples.push_back(node->getGradY());
+            samples.push_back(node->getGradZ());
+        }
+        if (var){
+            samples.push_back(node->getPosNoise());
+            if (grad){
+                samples.push_back(node->getGradNoise());
+            }
+        }
     }
     return true;;
 }

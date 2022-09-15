@@ -109,8 +109,8 @@ public:
 
     int getMapDimension(){return mapDimension;}
     int getSampleCount();
-    bool getAllSamples(float* psamples, int dim, int leng);
-    bool getAllSamples(std::vector<float> & samples);
+    bool getAllSamples(float* psamples, int dim, int leng, bool grad=false, bool var=false);
+    bool getAllSamples(std::vector<float> & samples, bool grad=false, bool var=false);
 
 private:
     void test_kernel(int thread_idx,

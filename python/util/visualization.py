@@ -134,9 +134,13 @@ def show_map_2d(gp, meshgrid_xy):
     Im = alpha_blend(sdf,va)
     fig, ax = plt.subplots(1, 1)
     plt.imshow(Im)
-    samples = gp.get_samples()
+    samples = gp.get_samples(var=True)
+    var = samples[:,2]
+    color = np.zeros((var.shape[0],4)) 
+    color[:,3] = np.clip(1-var, 0.1, 1) 
     plt.scatter((samples[:,0]-xg[0,0])/(xg[-1,-1]-xg[0,0])*xg.shape[0], 
-                (1-(samples[:,1]-yg[0,0])/(yg[-1,-1]-yg[0,0]))*yg.shape[1], s=1, c='k')
+                (1-(samples[:,1]-yg[0,0])/(yg[-1,-1]-yg[0,0]))*yg.shape[1], 
+                s=1, c=color)
     plt.tight_layout()
     plt.tick_params(left = False, right = False , labelleft = False ,
         labelbottom = False, bottom = False)
