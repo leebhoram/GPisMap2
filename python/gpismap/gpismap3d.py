@@ -54,5 +54,16 @@ class GPisMap3D():
                 as_float_c_array(res)
             )
         return res
-      
     
+    def get_sample_count(self):
+        return _LIB.get_sample_count_gpm3d(self.gpmap)
+
+    def get_samples(self):
+        count = self.get_sample_count()
+
+        buf = np.empty((count, 3), dtype=np.float32)      
+        _LIB.get_samples_gpm3d(self.gpmap,
+                          buf.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+                          int(3),
+                          int(count));
+        return buf

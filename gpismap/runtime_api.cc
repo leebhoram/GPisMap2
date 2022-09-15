@@ -44,6 +44,22 @@ int test_gpm(GPMHandle gh, float * x,  int dim,  int leng, float* res){
     return 0;
 }
 
+int get_sample_count_gpm(GPMHandle gh)
+{
+    if (gh != NULL){
+        return gh->getSampleCount();
+    }
+    return 0;
+}
+
+int get_samples_gpm(GPMHandle gh, float * x,  int dim,  int leng){
+    if (gh != NULL){
+        if (gh->getAllSamples(x, dim, leng))
+            return 1;
+    }
+    return 0;
+}
+
 /// GPisMap3 (3d)
 int create_gpm3d_instance(GPM3Handle *gh){
     *gh = new GPisMap3;
@@ -92,6 +108,22 @@ int test_gpm3d(GPM3Handle gh, float * x,  int dim,  int leng, float* res){
     if (gh != NULL){
         gh->test(x, dim, leng, res);
         return 1;
+    }
+    return 0;
+}
+
+int get_sample_count_gpm3d(GPM3Handle gh)
+{
+    if (gh != NULL){
+        return gh->getSampleCount();
+    }
+    return 0;
+}
+
+int get_samples_gpm3d(GPM3Handle gh, float * x,  int dim,  int leng){
+    if (gh != NULL){
+        if (gh->getAllSamples(x, dim, leng))
+            return 1;
     }
     return 0;
 }
