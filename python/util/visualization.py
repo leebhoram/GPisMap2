@@ -161,14 +161,21 @@ def show_mesh_3d(gp3d, meshgrid_xyz, var_thre=0.1):
     var = np.reshape(f[:,4],xg.shape)
     verts, faces, _, _ = marching_cubes(sdf, 0.0, 
             mask=high_confidence_index)
+
+    # rescale vertex coordinate 
+    # still looks a bit off
+    mins = np.array([xg[0,0,0], yg[0,0,0], zg[0,0,0]])
+    maxes = np.array([xg[-1,-1,-1], yg[-1,-1,-1], zg[-1,-1,-1]])
+    ranges = maxes - mins
+    verts_scaled = (verts + 0.5) * ranges / np.array(xg.shape) + mins
    
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    patches = ax.plot_trisurf(verts[:, 0], verts[:,1], faces, verts[:, 2], 
+    patches = ax.plot_trisurf(verts_scaled[:, 0], verts_scaled[:,1], faces, verts_scaled[:, 2], 
                     edgecolor=[0.1,0.1,0.1],
                     lw=0.1)
     patches.set_facecolor([0.5,0.5,0.5])
-    samples = 100*gp3d.get_samples()
+    samples = gp3d.get_samples()
     ax.scatter(samples[:,0],samples[:,1],samples[:,2], s=1, c='k')
     ax.set_box_aspect([1,1,1])
     set_axes3d_equal(ax)
