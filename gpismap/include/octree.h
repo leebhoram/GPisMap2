@@ -153,8 +153,7 @@ class OcTree
     bool leaf;
     bool maxDepthReached;
     bool rootLimitReached;
-
-    int32_t numNodes;
+    bool clevel;
 
     // Children
     OcTree* northWestFront;
@@ -179,7 +178,6 @@ class OcTree
     void resetChildrenMap();
     void updateChildrenCenter();
     bool InsertToParent(std::shared_ptr<Node3> n);  
-    void updateCount();
     void setParent(OcTree* const p){par = p;}
 
     OcTree(AABB3 _boundary, OcTree* const p = nullptr );
@@ -187,10 +185,10 @@ class OcTree
 
 protected:
     OcTree* const getParent(){return par;}
-    bool IsLeaf(); // leaf is true if chlidren are initialized
+    bool IsLeaf(){ return leaf;} // leaf is true if chlidren are initialized
     bool IsEmpty(){return (node == nullptr);} // empty if the data node is null
     bool IsEmptyLeaf(){
-        return (IsLeaf() & IsEmpty()); // true if no data node no child
+        return ( leaf & (node == nullptr)); // true if no data node no child
     }
 public:
     // Methods
@@ -206,7 +204,6 @@ public:
             maxDepthReached(false),
             rootLimitReached(false),
             leaf(true),
-            numNodes(0),
             node(nullptr),
             gp(nullptr){}
 
@@ -221,7 +218,7 @@ public:
     }
 
     OcTree* const getRoot();
-    bool IsCluster();
+    bool IsCluster(){return clevel;}
 
     bool Insert(std::shared_ptr<Node3> n);
     bool Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs);

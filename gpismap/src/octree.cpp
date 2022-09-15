@@ -43,7 +43,7 @@ OcTree::OcTree(Point3<float> c)
         maxDepthReached(false),
         rootLimitReached(false),
         leaf(true),
-        numNodes(0),
+        clevel(false),
         node(nullptr),
         gp(nullptr){
     boundary = AABB3(c,OcTree::param.initroot_halfleng);
@@ -63,7 +63,7 @@ OcTree::OcTree(AABB3 _boundary, OcTree* const p )
         maxDepthReached(false),
         rootLimitReached(false),
         leaf(true),
-        numNodes(0),
+        clevel(false),
         node(nullptr),
         gp(nullptr){
     boundary = _boundary;
@@ -71,6 +71,8 @@ OcTree::OcTree(AABB3 _boundary, OcTree* const p )
         maxDepthReached = true;
     if (boundary.getHalfLength() > OcTree::param.max_halfleng)
         rootLimitReached = true;
+    if (fabs(getHalfLength()-OcTree::param.cluster_halfleng) < EPS)
+        clevel = true;
     if (p!=nullptr)
         par = p;
     resetChildrenMap();
@@ -88,7 +90,7 @@ OcTree::OcTree(AABB3 _boundary,  OcTree* const ch,  OctChildType child_type)
          par(nullptr),
         maxDepthReached(false),
         rootLimitReached(false),
-        numNodes(0),
+        clevel(false),
         node(nullptr),
         gp(nullptr){
     boundary = _boundary;
@@ -96,6 +98,8 @@ OcTree::OcTree(AABB3 _boundary,  OcTree* const ch,  OctChildType child_type)
         maxDepthReached = true;
     if (boundary.getHalfLength() > OcTree::param.max_halfleng)
         rootLimitReached = true;
+    if (fabs(getHalfLength()-OcTree::param.cluster_halfleng) < EPS)
+        clevel = true;
     if (child_type == OctChildType::undefined)
     {
         leaf = true;
@@ -133,8 +137,7 @@ OcTree::~OcTree(){
 void OcTree::deleteNode(){
     if (node != nullptr){
         node.reset();
-        node = nullptr;        
-        numNodes = 0;
+        node = nullptr;
     }
 }
 
@@ -144,20 +147,6 @@ void OcTree::deleteGP(){
         gp = nullptr;
     }
 }
-
-bool OcTree::IsLeaf(){
-    if (northWestFront == nullptr && 
-        northEastFront == nullptr && 
-        southWestFront == nullptr && 
-        southEastFront == nullptr && 
-        northWestBack == nullptr && 
-        northEastBack == nullptr && 
-        southWestBack == nullptr && 
-        southEastBack == nullptr)
-        return true;
-    else
-        return false;
-} 
 
 void OcTree::deleteChildren()
 {
@@ -169,6 +158,7 @@ void OcTree::deleteChildren()
     if (northEastBack) {delete northEastBack; northEastBack = nullptr;}
     if (southWestBack) {delete southWestBack; southWestBack = nullptr;}
     if (southEastBack) {delete southEastBack; southEastBack = nullptr;}
+    leaf = true;
     resetChildrenMap();
 }
 
@@ -223,13 +213,6 @@ void OcTree::UpdateGP(const vecNode3& samples)
 {
     if (gp != nullptr)
         gp->train(samples);
-}
-
-bool OcTree::IsCluster()
-{
-    if (fabs(getHalfLength()-OcTree::param.cluster_halfleng) < 1e-6)
-        return true;
-    return false;
 }
 
 bool OcTree::InsertToParent(std::shared_ptr<Node3> n){
@@ -309,14 +292,13 @@ bool OcTree::Insert(std::shared_ptr<Node3> n){
     if (maxDepthReached){
         if (IsEmpty()) {// If this is the first point in this oct tree, add the object here
             node = n;
-            numNodes = 1;
             return true;
         }
         else // no more points accepted at this resolution
             return false;
     }
 
-    if (IsLeaf()){
+    if (leaf){
 
         if (boundary.getHalfLength() > OcTree::param.cluster_halfleng){
             Subdivide();
@@ -326,7 +308,6 @@ bool OcTree::Insert(std::shared_ptr<Node3> n){
             // If this is the first point in this oct tree, add the object here
             {
                 node = n;
-                numNodes = 1;
                 return true;
             }
 
@@ -352,7 +333,6 @@ bool OcTree::Insert(std::shared_ptr<Node3> n){
             break;            
         }
 
-    //updateCount(); 
     return inserted;
 }
 
@@ -369,14 +349,15 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
     if (maxDepthReached){
         if (IsEmpty()) {// If this is the first point in this oct tree, add the object here
             node = n;
-            numNodes = 1;
+            if (clevel)
+                octs.insert(this);
             return true;
         }
         else // no more points accepted at this resolution
             return false;
     }
 
-    if (IsLeaf()){
+    if (leaf){
 
         if (boundary.getHalfLength() > OcTree::param.cluster_halfleng){
             Subdivide();
@@ -385,8 +366,7 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
             if (IsEmpty())
             {
                 node = n;
-                numNodes = 1;
-                if (IsCluster())
+                if (clevel)
                     octs.insert(this);
                 return true;
             }
@@ -407,7 +387,7 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
 
     for (auto const &child: children_map)
         if (child.second->Insert(n,octs)){
-            if (IsCluster())
+            if (clevel)
                 octs.insert(this);
             return true;
         }
@@ -416,18 +396,13 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
 
 }
 
-void OcTree::updateCount()
-{   
-    numNodes = 0;
+int32_t OcTree::getNodeCount(){
+    int32_t numNodes = 0;
     if (node !=nullptr)
         numNodes++;
     for (auto const &child: children_map)
         if (child.second != nullptr)
             numNodes += child.second->getNodeCount();
-}
-
-int32_t OcTree::getNodeCount(){
-    updateCount();
     return numNodes;
 }
 
@@ -445,7 +420,7 @@ bool OcTree::IsNotNew(std::shared_ptr<Node3> n)
         return true;
     }
 
-    if (IsLeaf())
+    if (leaf)
         return false;
 
     for (auto const &child: children_map)
@@ -470,7 +445,7 @@ bool OcTree::Remove(std::shared_ptr<Node3> n){
         return true;
     }
 
-    if (IsLeaf())
+    if (leaf)
         return false;
 
     bool res = false;
@@ -491,10 +466,8 @@ bool OcTree::Remove(std::shared_ptr<Node3> n){
         {
             deleteChildren();
             deleteNode();
-            leaf = true;
         }
     }
-    updateCount();
 
     return res;
 }
@@ -514,7 +487,7 @@ bool OcTree::Remove(std::shared_ptr<Node3> n,std::unordered_set<OcTree*>& octs){
         return true;
     }
 
-    if (IsLeaf())
+    if (leaf)
         return false;
 
     bool res = false;
@@ -538,10 +511,8 @@ bool OcTree::Remove(std::shared_ptr<Node3> n,std::unordered_set<OcTree*>& octs){
             }
             deleteChildren();
             deleteNode();
-            leaf = true;
         }
     }
-    updateCount();
 
     return res;
 }
@@ -559,11 +530,10 @@ bool OcTree::Update(std::shared_ptr<Node3> n){
     {
         deleteNode();
         node = n;
-        numNodes = 1;
         return true;
     }
 
-    if (IsLeaf())
+    if (leaf)
         return false;
 
     for (auto const &child: children_map)
@@ -571,7 +541,6 @@ bool OcTree::Update(std::shared_ptr<Node3> n){
             return true;
 
     return false;
-
 }
 
 bool OcTree::Update(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs){
@@ -587,18 +556,17 @@ bool OcTree::Update(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
     {
         deleteNode();
         node = n;
-        numNodes = 1;
-        if (IsCluster())
+        if (clevel)
             octs.insert(this);
         return true;
     }
 
-    if (IsLeaf())
+    if (leaf)
         return false;
 
     for (auto const &child: children_map)
         if (child.second->Update(n, octs)){
-            if (IsCluster())
+            if (clevel)
                 octs.insert(this);
             return true;
         }   
@@ -711,6 +679,7 @@ void OcTree::SubdivideExcept(OctChildType childType)
     }
 
     leaf = false;
+    resetChildrenMap();
 }
 
  // Find all points that appear within a range
@@ -722,7 +691,7 @@ void OcTree::QueryRange(AABB3 range, std::vector<std::shared_ptr<Node3> >& nodes
     }
 
     // Check objects at this oct level
-    if (IsLeaf()){
+    if (leaf){
         if (sqdist(node->getPos(), range.getCenter()) <  range.getHalfLengthSq()){
             nodes.push_back(node);
         }
@@ -741,7 +710,7 @@ void OcTree::getAllChildrenNonEmptyNodes(std::vector<std::shared_ptr<Node3> >& n
      if (IsEmptyLeaf())
          return;
 
-     if (IsLeaf())
+     if (leaf)
      {
         if (node !=nullptr){
             nodes.push_back(node);
@@ -760,7 +729,7 @@ void OcTree::getChildNonEmptyNodes(OctChildType c, std::vector<std::shared_ptr<N
      if (IsEmptyLeaf())
          return;
 
-     if (IsLeaf())
+     if (leaf)
      {
          nodes.push_back(node);
          return;
@@ -779,7 +748,7 @@ void OcTree::QueryNonEmptyLevelC(AABB3 range, std::vector<OcTree*>& octs)
         return; // empty list
     }
 
-    if (IsLeaf()){ // no children
+    if (leaf){ // no children
         if (boundary.getHalfLength() > (OcTree::param.cluster_halfleng+0.0001)){
             return;
         }
@@ -806,7 +775,7 @@ void OcTree::QueryNonEmptyLevelC(AABB3 range, std::vector<OcTree*>& octs, std::v
         return; // empty list
     }
 
-    if (IsLeaf()){ // no children
+    if (leaf){ // no children
         if (boundary.getHalfLength() > OcTree::param.cluster_halfleng+0.001){
             return;
         }

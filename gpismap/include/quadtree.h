@@ -126,8 +126,7 @@ class QuadTree
     bool leaf;
     bool maxDepthReached;
     bool rootLimitReached;
-
-    int32_t numNodes;
+    bool clevel;
 
     // Children
     QuadTree* northWest;
@@ -152,10 +151,10 @@ class QuadTree
     void setParent(QuadTree* const p){par = p;}
 protected:
     QuadTree* const getParent(){return par;}
-    bool IsLeaf(); // leaf is true if no chlidren are initialized
+    bool IsLeaf(){ return leaf;} // leaf is true if no chlidren are initialized
     bool IsEmpty(){return (node == nullptr);} // empty if the data node is null
     bool IsEmptyLeaf(){
-        return (IsLeaf() & IsEmpty()); // true if no data node no child
+        return ( leaf & (node == nullptr)); // true if no data node no child
     }
 public:
     // Methods
@@ -167,7 +166,6 @@ public:
             maxDepthReached(false),
             rootLimitReached(false),
             leaf(true),
-            numNodes(0),
             node(nullptr),
             gp(nullptr){}
 
@@ -181,7 +179,7 @@ public:
             return true;
     }
 
-    bool IsCluster();
+   bool IsCluster(){return clevel;}
     QuadTree* const getRoot();
 
     // Note: Call this function ONLY BEFORE creating an instance of tree
