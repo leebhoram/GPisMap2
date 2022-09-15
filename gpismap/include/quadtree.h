@@ -152,10 +152,10 @@ class QuadTree
     void setParent(QuadTree* const p){par = p;}
 protected:
     QuadTree* const getParent(){return par;}
-    bool IsLeaf(){return leaf;} // leaf is true if chlidren are initialized
+    bool IsLeaf(); // leaf is true if no chlidren are initialized
     bool IsEmpty(){return (node == nullptr);} // empty if the data node is null
     bool IsEmptyLeaf(){
-        return (leaf & (node == nullptr) ); // true if no data node no child
+        return (IsLeaf() & IsEmpty()); // true if no data node no child
     }
 public:
     // Methods
@@ -195,7 +195,8 @@ public:
     bool Update(std::shared_ptr<Node> n, std::unordered_set<QuadTree*>& quads);
     bool Remove(std::shared_ptr<Node> n, std::unordered_set<QuadTree*>& quads);
 
-    void Update(std::shared_ptr<OnGPIS> _gp);
+    void InitGP(float scale_param, float noise_param);
+    void UpdateGP(const vecNode& samples);
     std::shared_ptr<OnGPIS> const getGP(){return gp;}
 
     bool Remove(std::shared_ptr<Node> n);
@@ -204,7 +205,7 @@ public:
     void QueryNonEmptyLevelC(AABB range, std::vector<QuadTree*>& quads, std::vector<float>& sqdst);
     void QueryNonEmptyLevelC(AABB range, std::vector<QuadTree*>& quads, std::vector<std::vector<std::shared_ptr<Node> > >& nodes);
 
-    int32_t getNodeCount(){return numNodes;}
+    int32_t getNodeCount();
     Point<float> getCenter(){return boundary.getCenter();}
     float getHalfLength(){return boundary.getHalfLength();}
     float getXMaxbound(){return boundary.getXMaxbound();}

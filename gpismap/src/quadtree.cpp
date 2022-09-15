@@ -115,6 +115,7 @@ void QuadTree::deleteNode(){
     if (node != nullptr){
         node.reset();
         node = nullptr;
+        numNodes = 0;
     }
 }
 
@@ -125,6 +126,16 @@ void QuadTree::deleteGP(){
     }
 }
 
+bool QuadTree::IsLeaf(){
+
+    if (northWest == nullptr && 
+        northEast == nullptr && 
+        southWest == nullptr && 
+        southEast == nullptr)
+        return true;
+    else
+        return false;
+} 
 
 void QuadTree::deleteChildren()
 {
@@ -132,7 +143,7 @@ void QuadTree::deleteChildren()
     if (northEast) {delete northEast; northEast = nullptr;}
     if (southWest) {delete southWest; southWest = nullptr;}
     if (southEast) {delete southEast; southEast = nullptr;}
-    leaf = true;
+    resetChildrenMap();
 }
 
 void QuadTree::resetChildrenMap(){
@@ -171,6 +182,18 @@ QuadTree* const QuadTree::getRoot(){
         p1 = p->getParent();
     }
     return p;
+}
+
+void QuadTree::InitGP(float scale_param, float noise_param)
+{
+    deleteGP();
+    gp = std::make_shared<OnGPIS>(scale_param, noise_param);
+}
+
+void QuadTree::UpdateGP(const vecNode& samples)
+{
+    if (gp != nullptr)
+        gp->train(samples);
 }
 
 bool QuadTree::InsertToParent(std::shared_ptr<Node> n){
@@ -220,7 +243,7 @@ bool QuadTree::Insert(std::shared_ptr<Node> n){
     }
 
     if (maxDepthReached){
-        if ( node == nullptr) {// If this is the first point in this quad tree, add the object here
+        if ( IsEmpty()) {// If this is the first point in this quad tree, add the object here
             node = n;
             numNodes = 1;
             return true;
@@ -235,7 +258,7 @@ bool QuadTree::Insert(std::shared_ptr<Node> n){
             Subdivide();
         }
         else{
-            if (node == nullptr)
+            if (IsEmpty())
             // If this is the first point in this quad tree, add the object here
             {
                 node = n;
@@ -243,27 +266,30 @@ bool QuadTree::Insert(std::shared_ptr<Node> n){
                 return true;
             }
 
-            // Otherwise, subdivide and then add the point to whichever node will accept it
-            //numNodes = 0;
+            // If the new node is too close to the old one, do not insert and return.
             if (sqdist(node->getPos(), n->getPos()) < QuadTree::param.min_halfleng_sqr){
                 return false;
             }
 
+            // Otherwise, subdivide and then add the (old) node to whichever node will accept it
             Subdivide();
             for (auto const &child: children_map)
-                if (child.second->Insert(node))
+                if (child.second->Insert(node)){
+                    deleteNode();
                     break;
-            node = nullptr;
+                }            
         }
     }
 
+    bool inserted = false;
     for (auto const &child: children_map)
         if (child.second->Insert(n)){
-            updateCount(); 
-            return true;
+            inserted = true;
+            break;            
         }
 
-    return false;
+    //updateCount(); 
+    return inserted;
 }
 
 bool QuadTree::Insert(std::shared_ptr<Node> n,  std::unordered_set<QuadTree*>& quads)
@@ -305,17 +331,18 @@ bool QuadTree::Insert(std::shared_ptr<Node> n,  std::unordered_set<QuadTree*>& q
                 return true;
             }
 
-            // Otherwise, subdivide and then add the point to whichever node will accept it
+            // If the new node is too close to the old one, do not insert and return.
             if (sqdist(node->getPos(), n->getPos()) < QuadTree::param.min_halfleng_sqr){
                 return false;
             }
 
+            // Otherwise, subdivide and then add the point to whichever node will accept it
             Subdivide();
             for (auto const &child: children_map)
-                if (child.second->Insert(node, quads))
+                if (child.second->Insert(node, quads)){
+                    deleteNode();
                     break;
-            
-            node = nullptr;
+                }
         }
     }
 
@@ -323,21 +350,29 @@ bool QuadTree::Insert(std::shared_ptr<Node> n,  std::unordered_set<QuadTree*>& q
         if (child.second->Insert(n,quads)){
             if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-6)
                 quads.insert(this);
-            updateCount(); 
             return true;
         }
 
     return false;
 }
 
+
 void QuadTree::updateCount()
-{
-    if (leaf==false){
-        numNodes = 0;
-        for (auto const &child: children_map)
+{   
+    numNodes = 0;
+    if (node !=nullptr)
+        numNodes++;
+    for (auto const &child: children_map)
+        if (child.second != nullptr)
             numNodes += child.second->getNodeCount();
-    }
+
 }
+
+int32_t QuadTree::getNodeCount(){
+    updateCount();
+    return numNodes;
+}
+
 
 bool QuadTree::IsNotNew(std::shared_ptr<Node> n)
 {
@@ -366,7 +401,7 @@ bool QuadTree::IsNotNew(std::shared_ptr<Node> n)
 bool QuadTree::Remove(std::shared_ptr<Node> n){
     // Ignore objects that do not belong in this quad tree
     if (!boundary.containsPoint(n->getPos())){
-        return false; // object cannot be added
+        return false; // object cannot be removed
     }
 
     if (IsEmptyLeaf())
@@ -418,6 +453,7 @@ bool QuadTree::Remove(std::shared_ptr<Node> n,std::unordered_set<QuadTree*>& qua
 
     if (!IsEmpty() && (sqdist(node->getPos(), n->getPos()) < EPS))
     {
+        quads.erase(this);
         deleteNode();
         return true;
     }
@@ -454,12 +490,6 @@ bool QuadTree::Remove(std::shared_ptr<Node> n,std::unordered_set<QuadTree*>& qua
     return res;
 }
 
-void QuadTree::Update(std::shared_ptr<OnGPIS> _gp)
-{   
-    deleteGP();
-    gp = _gp;
-}
-
 bool QuadTree::Update(std::shared_ptr<Node> n){
     // Ignore objects that do not belong in this quad tree
     if (!boundary.containsPoint(n->getPos())){
@@ -471,7 +501,9 @@ bool QuadTree::Update(std::shared_ptr<Node> n){
 
     if (!IsEmpty() && (sqdist(node->getPos(), n->getPos()) < EPS))
     {
+        deleteNode();
         node = n;
+        numNodes = 1;
         return true;
     }
 
@@ -496,7 +528,9 @@ bool QuadTree::Update(std::shared_ptr<Node> n, std::unordered_set<QuadTree*>& qu
 
     if (!IsEmpty() && (sqdist(node->getPos(), n->getPos()) < EPS))
     {
+        deleteNode();
         node = n;
+        numNodes = 1;
         if (fabs(getHalfLength()-QuadTree::param.cluster_halfleng) < 1e-3)
             quads.insert(this);
         return true;

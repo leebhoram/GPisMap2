@@ -178,18 +178,19 @@ class OcTree
     void deleteGP();
     void resetChildrenMap();
     void updateChildrenCenter();
-    bool InsertToParent(std::shared_ptr<Node3> n);
+    bool InsertToParent(std::shared_ptr<Node3> n);  
+    void updateCount();
+    void setParent(OcTree* const p){par = p;}
 
     OcTree(AABB3 _boundary, OcTree* const p = nullptr );
     OcTree(AABB3 _boundary, OcTree* const ch, OctChildType child_type);
 
 protected:
-    void setParent(OcTree* const p){par = p;}
     OcTree* const getParent(){return par;}
-    bool IsLeaf(){return leaf;} // leaf is true if chlidren are initialized
+    bool IsLeaf(); // leaf is true if chlidren are initialized
     bool IsEmpty(){return (node == nullptr);} // empty if the data node is null
     bool IsEmptyLeaf(){
-        return (leaf & (node == nullptr) ); // true if no data node no child
+        return (IsLeaf() & IsEmpty()); // true if no data node no child
     }
 public:
     // Methods
@@ -209,8 +210,7 @@ public:
             node(nullptr),
             gp(nullptr){}
 
-    OcTree(Point3<float> c);
-
+    OcTree(Point3<float> center);
     ~OcTree();
 
     bool IsRoot(){
@@ -239,7 +239,7 @@ public:
     void QueryNonEmptyLevelC(AABB3 range, std::vector<OcTree*>& octs, std::vector<float>& sqdst);
     void QueryNonEmptyLevelC(AABB3 range, std::vector<OcTree*>& octs, std::vector<std::vector<std::shared_ptr<Node3> > >& nodes);
 
-    int32_t getNodeCount(){return numNodes;}
+    int32_t getNodeCount();
     Point3<float> getCenter(){return boundary.getCenter();}
     float getHalfLength(){return boundary.getHalfLength();}
     float getXMaxbound(){return boundary.getXMaxbound();}
@@ -253,8 +253,7 @@ public:
 
     void getAllChildrenNonEmptyNodes(std::vector<std::shared_ptr<Node3> >& nodes);
     void getChildNonEmptyNodes(OctChildType c, std::vector<std::shared_ptr<Node3> >& nodes);
-    
-    void updateCount();
+
 };
 
 #endif

@@ -180,6 +180,46 @@ bool GPisMap::preproData( float * datax,  float * dataf, int N, std::vector<floa
     return false;
 }
 
+int GPisMap::getSampleCount(){
+    if (t!=nullptr)
+        return t->getNodeCount();
+    return 0;
+}
+
+bool GPisMap::getAllSamples(float* psamples, int dim, int leng)
+{
+    if (t==nullptr || dim !=2)
+        return 0;
+
+    std::vector<float> samples;
+    bool res = getAllSamples(samples);
+
+    if (res && (samples.size() == leng*dim)){
+        return true;
+    }
+    
+    if (res && samples.size() == leng*dim){
+        std::copy(samples.begin(), samples.end(), psamples);
+        return true;
+    }
+
+    return false;
+}
+
+bool GPisMap::getAllSamples(std::vector<float> & samples)
+{
+    if (t==nullptr)
+        return 0;
+    std::vector<std::shared_ptr<Node> > nodes;
+    t->getAllChildrenNonEmptyNodes(nodes);
+
+    samples.clear();
+    for (auto const &node: nodes){
+        samples.push_back(node->getPosX());
+        samples.push_back(node->getPosY());
+    }
+    return true;;
+}
 
 // to be called by C API
 void GPisMap::update(  float * datax,  float * dataf, int N, float pose[6])

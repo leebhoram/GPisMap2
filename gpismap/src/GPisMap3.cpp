@@ -122,6 +122,43 @@ void GPisMap3::resetCam(camParam c){
     return;
 }
 
+int GPisMap3::getSampleCount(){
+    if (t!=nullptr)
+        return t->getNodeCount();
+    return 0;
+}
+
+bool GPisMap3::getAllSamples(float* psamples, int dim, int leng)
+{
+    if (t==nullptr || dim !=3)
+        return false;
+
+    std::vector<float> samples;
+    bool res = getAllSamples(samples);
+    if (res && (samples.size() == leng*dim)){
+        return true;
+    }
+
+    return false;
+}
+
+bool GPisMap3::getAllSamples(std::vector<float> & samples)
+{
+    if (t==nullptr)
+        return false;
+
+    std::vector<std::shared_ptr<Node3> > nodes;
+    t->getAllChildrenNonEmptyNodes(nodes);
+
+    samples.clear();
+    for (auto const &node: nodes){
+        samples.push_back(node->getPosX());
+        samples.push_back(node->getPosY());
+        samples.push_back(node->getPosZ());
+    }
+    return true;;
+}
+
 bool GPisMap3::preprocData(float * dataz, int N, std::vector<float> & pose)
 {
     if (dataz == 0 || N < 1)

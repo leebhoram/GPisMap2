@@ -122,12 +122,42 @@ OcTree::OcTree(AABB3 _boundary,  OcTree* const ch,  OctChildType child_type)
             southEastBack = ch;
     }
     resetChildrenMap();
-    
 }
 
 OcTree::~OcTree(){
     deleteChildren();
+    deleteGP();
+    deleteNode();
 }
+
+void OcTree::deleteNode(){
+    if (node != nullptr){
+        node.reset();
+        node = nullptr;        
+        numNodes = 0;
+    }
+}
+
+void OcTree::deleteGP(){
+    if (gp != nullptr){
+        gp.reset();
+        gp = nullptr;
+    }
+}
+
+bool OcTree::IsLeaf(){
+    if (northWestFront == nullptr && 
+        northEastFront == nullptr && 
+        southWestFront == nullptr && 
+        southEastFront == nullptr && 
+        northWestBack == nullptr && 
+        northEastBack == nullptr && 
+        southWestBack == nullptr && 
+        southEastBack == nullptr)
+        return true;
+    else
+        return false;
+} 
 
 void OcTree::deleteChildren()
 {
@@ -139,6 +169,7 @@ void OcTree::deleteChildren()
     if (northEastBack) {delete northEastBack; northEastBack = nullptr;}
     if (southWestBack) {delete southWestBack; southWestBack = nullptr;}
     if (southEastBack) {delete southEastBack; southEastBack = nullptr;}
+    resetChildrenMap();
 }
 
 void OcTree::resetChildrenMap(){
@@ -162,19 +193,14 @@ void OcTree::updateChildrenCenter(){
         }
 }
 
-void OcTree::deleteNode(){
-    if (node != nullptr){
-        node.reset();
-        node = nullptr;        
-        numNodes = 0;
-    }
+std::map<OctChildType, Point3<float>> const & OcTree::getAllChildrenCenter()
+{
+    return children_center;
 }
 
-void OcTree::deleteGP(){
-    if (gp != nullptr){
-        gp.reset();
-        gp = nullptr;
-    }
+std::map<OctChildType, OcTree*> const & OcTree::getAllChildren()
+{   
+    return children_map;
 }
 
 OcTree* const OcTree::getRoot(){
@@ -185,16 +211,6 @@ OcTree* const OcTree::getRoot(){
         p1 = p->getParent();
     }
     return p;
-}
-
-std::map<OctChildType, Point3<float>> const & OcTree::getAllChildrenCenter()
-{
-    return children_center;
-}
-
-std::map<OctChildType, OcTree*> const & OcTree::getAllChildren()
-{   
-    return children_map;
 }
 
 void OcTree::InitGP(float scale_param, float noise_param)
@@ -284,7 +300,7 @@ bool OcTree::Insert(std::shared_ptr<Node3> n){
     }
 
     if (maxDepthReached){
-        if (node == nullptr) {// If this is the first point in this oct tree, add the object here
+        if (IsEmpty()) {// If this is the first point in this oct tree, add the object here
             node = n;
             numNodes = 1;
             return true;
@@ -299,7 +315,7 @@ bool OcTree::Insert(std::shared_ptr<Node3> n){
             Subdivide();
         }
         else{
-            if (node == nullptr)
+            if (IsEmpty())
             // If this is the first point in this oct tree, add the object here
             {
                 node = n;
@@ -314,19 +330,23 @@ bool OcTree::Insert(std::shared_ptr<Node3> n){
 
             Subdivide();
             for (auto const &child: children_map)
-                if (child.second->Insert(node))
+                if (child.second->Insert(node)){
+                    deleteNode(); 
                     break;
-            node = nullptr;
+                }
+                       
         }
     }
 
+    bool inserted = false;
     for (auto const &child: children_map)
         if (child.second->Insert(n)){
-            updateCount(); 
-            return true;
+            inserted = true;
+            break;            
         }
 
-    return false;
+    //updateCount(); 
+    return inserted;
 }
 
 bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs){
@@ -340,7 +360,7 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
     }
 
     if (maxDepthReached){
-        if (node == nullptr) {// If this is the first point in this oct tree, add the object here
+        if (IsEmpty()) {// If this is the first point in this oct tree, add the object here
             node = n;
             numNodes = 1;
             return true;
@@ -355,7 +375,7 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
             Subdivide();
         }
         else{
-            if (node == nullptr)
+            if (IsEmpty())
             {
                 node = n;
                 numNodes = 1;
@@ -371,9 +391,10 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
 
             Subdivide();
             for (auto const &child: children_map)
-                if (child.second->Insert(node, octs))
+                if (child.second->Insert(node, octs)){
+                    deleteNode();
                     break;
-            node = nullptr;
+                }
         }
     }
 
@@ -381,7 +402,6 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
         if (child.second->Insert(n,octs)){
             if (fabs(getHalfLength()-OcTree::param.cluster_halfleng) < 1e-6)
                 octs.insert(this);
-            updateCount(); 
             return true;
         }
 
@@ -390,12 +410,18 @@ bool OcTree::Insert(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
 }
 
 void OcTree::updateCount()
-{
-    if (leaf==false){
-        numNodes = 0;
-        for (auto const &child: children_map)
+{   
+    numNodes = 0;
+    if (node !=nullptr)
+        numNodes++;
+    for (auto const &child: children_map)
+        if (child.second != nullptr)
             numNodes += child.second->getNodeCount();
-    }
+}
+
+int32_t OcTree::getNodeCount(){
+    updateCount();
+    return numNodes;
 }
 
 bool OcTree::IsNotNew(std::shared_ptr<Node3> n)
@@ -524,7 +550,9 @@ bool OcTree::Update(std::shared_ptr<Node3> n){
 
     if (!IsEmpty() && (sqdist(node->getPos(), n->getPos()) < EPS))
     {
+        deleteNode();
         node = n;
+        numNodes = 1;
         return true;
     }
 
@@ -550,7 +578,9 @@ bool OcTree::Update(std::shared_ptr<Node3> n, std::unordered_set<OcTree*>& octs)
 
     if (!IsEmpty() && (sqdist(node->getPos(), n->getPos()) < EPS))
     {
+        deleteNode();
         node = n;
+        numNodes = 1;
         if (fabs(getHalfLength()-OcTree::param.cluster_halfleng) < 1e-3)
             octs.insert(this);
         return true;
@@ -706,8 +736,10 @@ void OcTree::getAllChildrenNonEmptyNodes(std::vector<std::shared_ptr<Node3> >& n
 
      if (IsLeaf())
      {
-         nodes.push_back(node);
-         return;
+        if (node !=nullptr){
+            nodes.push_back(node);
+            return;
+        }
      }
 
      for (auto const &child: children_map)
