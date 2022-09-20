@@ -12,11 +12,11 @@ def main():
     ranges = np.array(data['ranges'],dtype=np.float32)
 
     # for visualization
-    xmin = -5;
-    xmax = 20;
-    ymin = -15;
-    ymax = 5;
-    test_intv = 0.1;
+    xmin = -5
+    xmax = 20
+    ymin = -15
+    ymax = 5
+    test_intv = 0.1
     x = np.linspace(xmin, xmax, int((xmax-xmin)/test_intv))
     y = np.linspace(ymin, ymax, int((ymax-ymin)/test_intv))
     xg, yg = np.meshgrid(x, y, indexing='ij')
@@ -32,13 +32,13 @@ def main():
         print(f"#frame: {nframe}")
         tr = poses[nframe,0:2]
         phi = poses[nframe,2]
-        Rot = np.array([np.cos(phi), np.sin(phi), -np.sin(phi), np.cos(phi)])     
+        Rot = np.array([np.cos(phi), np.sin(phi), -np.sin(phi), np.cos(phi)])
         range_obs = ranges[nframe,:].flatten()
 
         gp.update(thetas, range_obs, tr , Rot)
-        
-        show_map_2d(gp, (xg, yg ))
-        input("Press Enter to continue...")
+
+    show_map_2d(gp, (xg, yg ))
+    input("Press Enter to continue...")
 
     gp.reset()
     input("Press Enter to end...")
