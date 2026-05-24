@@ -4,5 +4,5 @@
 *.ipynb*
 *__pycache*
 .DS_Store
-build/*
-jnb/*
+build/
+doc/
