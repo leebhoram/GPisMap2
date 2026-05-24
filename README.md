@@ -28,7 +28,7 @@ For running the demos and visualizing results, choose one of the two options bel
 ## Compiling and Running
 
 1. Clone this repository
-```
+```bash
 git clone https://github.com/leebhoram/GPisMap2.git
 cd GPisMap2
 ```
@@ -36,7 +36,7 @@ cd GPisMap2
 ### MATLAB Option
 
 2. cd to the mex directory in MATLAB
-```
+```bash
 cd <GPisMap2>/matlab/mex
 ```
 
@@ -54,7 +54,7 @@ cd <GPisMap2>/matlab/mex
 4. Run the demo scripts
 
 First,
-```
+```bash
 cd <GPisMap2>/matlab
 ```
 Then,
@@ -76,7 +76,7 @@ run('demo_gpisMap3.m')
 ### Python Option
 
 2. Build the source
-```
+```bash
 mkdir build && cd build
 cmake ..
 make -j $(nproc)              # Linux
@@ -86,32 +86,32 @@ make -j $(sysctl -n hw.ncpu)  # macOS
 3. Install Python dependencies (Python 3.14). Use any environment manager you
 prefer — venv, conda, pyenv, etc. For example, with venv:
 
-```
+```bash
 python3.14 -m venv .venv
 source .venv/bin/activate
 ```
 
 Then install:
 
-```
+```bash
 pip install -r requirements.txt
 ```
 
 If trying with PyVista (note that its dependency `vtk` takes ~600MB disk space):
-```
+```bash
 pip install pyvista>=0.44
 ```
 
 4. Run the demo scripts
-```
+```bash
 cd <GPisMap2>/python
 ```
    * For 2D
-   ```
+   ```bash
    python test.py
    ```
    * For 3D
-   ```
+   ```bash
    python test3d.py                       # default using matplotlib (no alpha)
    python test3d.py --pyvista --alpha 0.3 # if using pyvista (with alpha value)
    ```
