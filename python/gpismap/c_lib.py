@@ -2,26 +2,25 @@
 # Adopted from
 # https://github.com/geek-ai/MAgent/blob/master/python/magent/c_lib.py
 
-from __future__ import absolute_import
-
-import os
 import ctypes
 import platform
-import multiprocessing
+from pathlib import Path
 
 
 def _load_lib():
-    """ Load library in build/lib. """
-    cur_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    lib_path = os.path.join(cur_path, os.path.dirname(cur_path))
-    lib_path = os.path.join(lib_path, os.path.dirname(lib_path))
+    """ Load libgpismap from <repo>/build/. """
+    repo_root = Path(__file__).resolve().parents[2]
+    build_dir = repo_root / 'build'
 
-    if platform.system() == 'Linux':
-        path_to_so_file = os.path.join(lib_path,'build/libgpismap.so')
+    system = platform.system()
+    if system == 'Linux':
+        path_to_so_file = build_dir / 'libgpismap.so'
+    elif system == 'Darwin':
+        path_to_so_file = build_dir / 'libgpismap.dylib'
     else:
-        raise BaseException("unsupported system: " + platform.system())
+        raise BaseException("unsupported system: " + system)
 
-    lib = ctypes.CDLL(path_to_so_file, ctypes.RTLD_GLOBAL)
+    lib = ctypes.CDLL(str(path_to_so_file), ctypes.RTLD_GLOBAL)
     return lib
 
 

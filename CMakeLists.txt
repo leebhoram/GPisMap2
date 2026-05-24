@@ -1,6 +1,11 @@
-cmake_minimum_required(VERSION 3.4)
+cmake_minimum_required(VERSION 3.10)
 project(GPisMap2 VERSION 0.1)
 
+if(APPLE)
+    list(APPEND CMAKE_PREFIX_PATH
+         "/opt/homebrew/opt/eigen@3"   # Apple Silicon
+         "/usr/local/opt/eigen@3")     # Intel Macs
+endif()
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 set(CMAKE_CXX_STANDARD 14)
 
