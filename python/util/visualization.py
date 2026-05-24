@@ -118,36 +118,78 @@ def set_axes3d_equal(ax):
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
-def show_map_2d(gp, meshgrid_xy):    
-    xg, yg = meshgrid_xy
-    xtest = np.stack((xg.flatten(), yg.flatten()), axis=-1).astype(np.float32)
-
-    f = gp.test(xtest)
-    # f[:,0] : sdf prediction
-    # f[:,1] : grad x prediction
-    # f[:,2] : grad y prediction
-    # f[:,3] : sdf variance
-    # f[:,4] : grad x variance
-    # f[:,5] : grad y variance
-    sdf = np.reshape(f[:,0]+0.2,xg.shape)
-    va = np.max(f[:,3]) - np.reshape(f[:,3],xg.shape);
-    Im = alpha_blend(sdf,va)
+def show_map_2d(gp, meshgrid_xy, tr=None, phi=None):
     fig, ax = plt.subplots(1, 1)
-    plt.imshow(Im)
-    samples = gp.get_samples(var=True)
-    var = samples[:,2]
-    color = np.zeros((var.shape[0],4)) 
-    color[:,3] = np.clip(1-var, 0.1, 1) 
-    plt.scatter((samples[:,0]-xg[0,0])/(xg[-1,-1]-xg[0,0])*xg.shape[0], 
-                (1-(samples[:,1]-yg[0,0])/(yg[-1,-1]-yg[0,0]))*yg.shape[1], 
-                s=1, c=color)
+    _render_map_2d(ax, gp, meshgrid_xy, tr, phi)
     plt.tight_layout()
-    plt.tick_params(left = False, right = False , labelleft = False ,
-        labelbottom = False, bottom = False)
     plt.show()
 
 
-def show_mesh_3d(gp3d, meshgrid_xyz, var_thre=0.1):    
+def _render_map_2d(ax, gp, meshgrid_xy, tr=None, phi=None):
+    """Shared draw routine for the 2D SDF map. Clears `ax` and redraws.
+
+    If `tr` (world x,y) and `phi` (heading in rad) are provided, also draws a
+    pose arrow.
+    """
+    xg, yg = meshgrid_xy
+    xtest = np.stack((xg.flatten(), yg.flatten()), axis=-1).astype(np.float32)
+    f = gp.test(xtest)
+    sdf = np.reshape(f[:, 0] + 0.2, xg.shape)
+    va = np.max(f[:, 3]) - np.reshape(f[:, 3], xg.shape)
+    Im = alpha_blend(sdf, va)
+
+    samples = gp.get_samples(var=True)
+    var = samples[:, 2]
+    color = np.zeros((var.shape[0], 4))
+    color[:, 3] = np.clip(1 - var, 0.1, 1)
+    sx = (samples[:, 0] - xg[0, 0]) / (xg[-1, -1] - xg[0, 0]) * xg.shape[0]
+    sy = (1 - (samples[:, 1] - yg[0, 0]) / (yg[-1, -1] - yg[0, 0])) * yg.shape[1]
+
+    ax.clear()
+    ax.imshow(Im)
+    ax.scatter(sx, sy, s=1, c=color)
+
+    if tr is not None and phi is not None:
+        # Same world->pixel transform as samples above. Image y is flipped
+        # (the imshow was rotated 90 CCW in alpha_blend), so heading sin is negated.
+        rx = (tr[0] - xg[0, 0]) / (xg[-1, -1] - xg[0, 0]) * xg.shape[0]
+        ry = (1 - (tr[1] - yg[0, 0]) / (yg[-1, -1] - yg[0, 0])) * yg.shape[1]
+        arrow_len = 0.04 * max(xg.shape[0], yg.shape[1])
+        dx = arrow_len * np.cos(phi)
+        dy = -arrow_len * np.sin(phi)
+        ax.arrow(rx, ry, dx, dy,
+                 head_width=arrow_len * 0.4, head_length=arrow_len * 0.4,
+                 fc='red', ec='red', length_includes_head=True, zorder=10)
+
+    ax.tick_params(left=False, right=False, labelleft=False,
+                   labelbottom=False, bottom=False)
+
+
+class MapStream2D:
+    """Live-updating 2D SDF map viewer (matplotlib).
+
+    Construct once, call `update(gp)` each frame, then `close()` when done.
+    The window stays open between frames instead of blocking on each call.
+    """
+
+    def __init__(self, meshgrid_xy):
+        self.meshgrid_xy = meshgrid_xy
+        plt.ion()
+        self.fig, self.ax = plt.subplots(1, 1)
+        plt.tight_layout()
+        plt.show(block=False)
+
+    def update(self, gp, tr=None, phi=None):
+        _render_map_2d(self.ax, gp, self.meshgrid_xy, tr, phi)
+        self.fig.canvas.draw_idle()
+        plt.pause(0.001)
+
+    def close(self):
+        plt.ioff()
+        plt.close(self.fig)
+
+
+def show_mesh_3d(gp3d, meshgrid_xyz, var_thre=0.1):
     xg, yg, zg = meshgrid_xyz
     xtest = np.stack((xg.flatten(), yg.flatten(), zg.flatten()), axis=-1).astype(np.float32)
 
@@ -180,7 +222,164 @@ def show_mesh_3d(gp3d, meshgrid_xyz, var_thre=0.1):
                     lw=0.1)
     patches.set_facecolor([0.5,0.5,0.5])
     samples = gp3d.get_samples()
-    ax.scatter(samples[:,0],samples[:,1],samples[:,2], s=1, c='k')
+    ax.scatter(samples[:,0],samples[:,1],samples[:,2], s=0.5, c='k')
     ax.set_box_aspect([1,1,1])
     set_axes3d_equal(ax)
     plt.show()
+
+
+def show_mesh_3d_pyvista(gp3d, meshgrid_xyz, var_thre=0.1, alpha=0.5,
+                         color=(0.5, 0.5, 0.5), show_edges=True,
+                         show_samples=True):
+    """PyVista variant of show_mesh_3d with proper translucent rendering.
+
+    Requires the optional `pyvista` dependency.
+    """
+    import pyvista as pv
+
+    xg, yg, zg = meshgrid_xyz
+    xtest = np.stack((xg.flatten(), yg.flatten(), zg.flatten()), axis=-1).astype(np.float32)
+
+    f = gp3d.test(xtest)
+    high_confidence_index = np.reshape(np.array(f[:,4] < var_thre), xg.shape)
+    sdf = np.reshape(f[:,0] + 0.2, xg.shape)
+    verts, faces, _, _ = marching_cubes(sdf, 0.0, mask=high_confidence_index)
+
+    mins = np.array([xg[0,0,0], yg[0,0,0], zg[0,0,0]])
+    maxes = np.array([xg[-1,-1,-1], yg[-1,-1,-1], zg[-1,-1,-1]])
+    ranges = maxes - mins
+    verts_scaled = (verts + 0.5) * ranges / np.array(xg.shape) + mins
+
+    # PyVista PolyData faces format: [n, i0, ..., i_{n-1}, n, ...]
+    n_faces = faces.shape[0]
+    faces_pv = np.empty((n_faces, 4), dtype=np.int64)
+    faces_pv[:, 0] = 3
+    faces_pv[:, 1:] = faces
+    mesh = pv.PolyData(verts_scaled, faces_pv.ravel())
+
+    plotter = pv.Plotter()
+    if alpha < 1.0:
+        # Order-independent transparency so back faces don't paint over front faces.
+        plotter.enable_depth_peeling()
+    plotter.add_mesh(mesh, color=color, opacity=alpha,
+                     show_edges=show_edges, edge_color=(0.1, 0.1, 0.1),
+                     line_width=0.3, smooth_shading=True)
+    if show_samples:
+        samples = gp3d.get_samples()
+        cloud = pv.PolyData(samples[:, :3])
+        plotter.add_mesh(cloud, color='black', point_size=2.0,
+                         render_points_as_spheres=False)
+    plotter.show()
+
+
+def _extract_mesh(gp3d, meshgrid_xyz, var_thre):
+    """Run the GP query + marching cubes and return scaled verts/faces/samples.
+
+    Returns (verts_scaled, faces, samples) or (None, None, samples) if no
+    isosurface could be extracted yet.
+    """
+    xg, yg, zg = meshgrid_xyz
+    xtest = np.stack((xg.flatten(), yg.flatten(), zg.flatten()), axis=-1).astype(np.float32)
+    f = gp3d.test(xtest)
+    high_confidence_index = np.reshape(np.array(f[:, 4] < var_thre), xg.shape)
+    sdf = np.reshape(f[:, 0] + 0.2, xg.shape)
+    samples = gp3d.get_samples()
+    try:
+        verts, faces, _, _ = marching_cubes(sdf, 0.0, mask=high_confidence_index)
+    except (RuntimeError, ValueError):
+        return None, None, samples
+    mins = np.array([xg[0, 0, 0], yg[0, 0, 0], zg[0, 0, 0]])
+    maxes = np.array([xg[-1, -1, -1], yg[-1, -1, -1], zg[-1, -1, -1]])
+    ranges = maxes - mins
+    verts_scaled = (verts + 0.5) * ranges / np.array(xg.shape) + mins
+    return verts_scaled, faces, samples
+
+
+class MeshStream3D:
+    """Live-updating 3D mesh viewer (matplotlib backend).
+
+    Create once, call `update(gp3d)` each frame, then `close()` when done.
+    The window stays open between frames instead of blocking on each call.
+    """
+
+    def __init__(self, meshgrid_xyz, var_thre=0.1):
+        self.meshgrid_xyz = meshgrid_xyz
+        self.var_thre = var_thre
+        plt.ion()
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111, projection='3d')
+        plt.show(block=False)
+
+    def update(self, gp3d):
+        verts_scaled, faces, samples = _extract_mesh(gp3d, self.meshgrid_xyz, self.var_thre)
+        self.ax.clear()
+        if verts_scaled is not None:
+            patches = self.ax.plot_trisurf(verts_scaled[:, 0], verts_scaled[:, 1], faces,
+                                           verts_scaled[:, 2],
+                                           edgecolor=[0.1, 0.1, 0.1], lw=0.1)
+            patches.set_facecolor([0.5, 0.5, 0.5])
+        self.ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=0.5, c='k')
+        self.ax.set_box_aspect([1, 1, 1])
+        set_axes3d_equal(self.ax)
+        self.fig.canvas.draw_idle()
+        plt.pause(0.001)
+
+    def close(self):
+        plt.ioff()
+        plt.close(self.fig)
+
+
+class MeshStream3DPyVista:
+    """Live-updating 3D mesh viewer (PyVista backend).
+
+    Requires the optional `pyvista` dependency. Same lifecycle as
+    `MeshStream3D`: construct once, `update(gp3d)` per frame, `close()` at end.
+    """
+
+    def __init__(self, meshgrid_xyz, var_thre=0.1, alpha=0.5,
+                 color=(0.5, 0.5, 0.5), show_edges=True, show_samples=True):
+        import pyvista as pv
+        self._pv = pv
+        self.meshgrid_xyz = meshgrid_xyz
+        self.var_thre = var_thre
+        self.alpha = alpha
+        self.color = color
+        self.show_edges = show_edges
+        self.show_samples = show_samples
+        self._mesh_actor = None
+        self._cloud_actor = None
+
+        self.plotter = pv.Plotter()
+        if alpha < 1.0:
+            self.plotter.enable_depth_peeling()
+        self.plotter.show(interactive_update=True, auto_close=False)
+
+    def update(self, gp3d):
+        verts_scaled, faces, samples = _extract_mesh(gp3d, self.meshgrid_xyz, self.var_thre)
+
+        if self._mesh_actor is not None:
+            self.plotter.remove_actor(self._mesh_actor)
+            self._mesh_actor = None
+        if self._cloud_actor is not None:
+            self.plotter.remove_actor(self._cloud_actor)
+            self._cloud_actor = None
+
+        if verts_scaled is not None:
+            n_faces = faces.shape[0]
+            faces_pv = np.empty((n_faces, 4), dtype=np.int64)
+            faces_pv[:, 0] = 3
+            faces_pv[:, 1:] = faces
+            mesh = self._pv.PolyData(verts_scaled, faces_pv.ravel())
+            self._mesh_actor = self.plotter.add_mesh(
+                mesh, color=self.color, opacity=self.alpha,
+                show_edges=self.show_edges, edge_color=(0.1, 0.1, 0.1),
+                line_width=0.3, smooth_shading=True)
+        if self.show_samples and samples.size:
+            cloud = self._pv.PolyData(samples[:, :3])
+            self._cloud_actor = self.plotter.add_mesh(
+                cloud, color='black', point_size=2.0,
+                render_points_as_spheres=False)
+        self.plotter.update()
+
+    def close(self):
+        self.plotter.close()

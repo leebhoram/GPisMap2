@@ -1,12 +1,21 @@
+import argparse
 import os
 import numpy as np
 import yaml
 import time
 from PIL import Image
+from tqdm import tqdm
 from gpismap import GPisMap3D
-from  util.visualization import show_mesh_3d
+from  util.visualization import MeshStream3D, MeshStream3DPyVista
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--pyvista", action="store_true",
+                        help="Render the final mesh with PyVista (translucent)")
+    parser.add_argument("--alpha", type=float, default=0.5,
+                        help="Opacity for the PyVista renderer (0..1)")
+    args = parser.parse_args()
+
 
     depthpath = '../data/3D/bigbird_detergent/masked_depth'
     poses = np.loadtxt('../data/3D/bigbird_detergent/pose/poses.txt')
@@ -33,8 +42,13 @@ def main():
 
     gp = GPisMap3D()
 
-    for k in range(len(frameid)):
-        print(f"#frame: {k}")
+    if args.pyvista:
+        stream = MeshStream3DPyVista((xg, yg, zg), alpha=args.alpha)
+    else:
+        stream = MeshStream3D((xg, yg, zg))
+
+    pbar = tqdm(range(len(frameid)), desc="frames", unit="frame")
+    for k in pbar:
         I = Image.open(os.path.join(depthpath, f'frame{frameid[k]}_cam{camid[k]}.png'))
         I = 0.0001*np.asarray(I,dtype=np.float32) # 10 mm to meter
         T = np.reshape(poses[k],(4,4))
@@ -52,13 +66,14 @@ def main():
         tic = time.perf_counter()
         gp.update(I, tr, Rot)
         toc = time.perf_counter()
-        print(f"Elapsed time: {toc - tic:0.4f} seconds...")
+        pbar.set_postfix(update_s=f"{toc - tic:0.3f}")
 
-    show_mesh_3d(gp, (xg, yg, zg))
-    input("Press Enter to continue...")
+        stream.update(gp)
 
-    gp.reset()
+
     input("Press Enter to end...")
+    stream.close()
+    gp.reset()
 
 if __name__ == "__main__":
     main()

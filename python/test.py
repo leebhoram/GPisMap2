@@ -1,7 +1,9 @@
+import time
 from scipy.io import loadmat
 import numpy as np
+from tqdm import tqdm
 from gpismap import GPisMap2D
-from  util.visualization import show_map_2d
+from  util.visualization import MapStream2D
 
 
 def main():
@@ -27,21 +29,25 @@ def main():
     lastframe = poses.shape[0]
 
     gp = GPisMap2D()
+    stream = MapStream2D((xg, yg))
 
-    for nframe in range(initframe,lastframe, skip):
-        print(f"#frame: {nframe}")
+    pbar = tqdm(range(initframe, lastframe, skip), desc="frames", unit="frame")
+    for nframe in pbar:
         tr = poses[nframe,0:2]
         phi = poses[nframe,2]
         Rot = np.array([np.cos(phi), np.sin(phi), -np.sin(phi), np.cos(phi)])
         range_obs = ranges[nframe,:].flatten()
 
+        tic = time.perf_counter()
         gp.update(thetas, range_obs, tr , Rot)
+        toc = time.perf_counter()
+        pbar.set_postfix(frame=nframe, update_s=f"{toc - tic:0.3f}")
 
-    show_map_2d(gp, (xg, yg ))
-    input("Press Enter to continue...")
+        stream.update(gp, tr, phi)
 
-    gp.reset()
     input("Press Enter to end...")
+    stream.close()
+    gp.reset()
 
 
 if __name__ == "__main__":
