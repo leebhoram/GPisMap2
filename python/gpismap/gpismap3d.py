@@ -1,5 +1,4 @@
 """GPisMap 3D interface"""
-from __future__ import absolute_import
 import ctypes
 import numpy as np
 from .c_lib import _LIB , as_float_c_array

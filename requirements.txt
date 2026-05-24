@@ -1,0 +1,11 @@
+numpy>=2.1
+scipy>=1.14
+matplotlib>=3.9
+Pillow>=11
+PyYAML>=6.0.2
+opencv-python>=4.10
+scikit-image>=0.24
+tqdm>=4.66
+
+# Optional: enables `python test3d.py --pyvista` for translucent 3D rendering.
+# pyvista>=0.44

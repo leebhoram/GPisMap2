@@ -1,5 +1,4 @@
 """GPisMap 2D interface"""
-from __future__ import absolute_import
 import ctypes
 import yaml
 import numpy as np
@@ -38,7 +37,7 @@ class GPisMap2D():
         config_dict = {}
         if len(config_yaml) > 0:
             print(f"Loading {config_yaml}")
-            config_dict = yaml.load(config_yaml)
+            config_dict = yaml.safe_load(config_yaml)
         for key, val in config_dict.items():
             _LIB.config_gpm(self.gp_map, key.encode("ascii"), ctypes.byref(ctypes.c_float(val)))
 
